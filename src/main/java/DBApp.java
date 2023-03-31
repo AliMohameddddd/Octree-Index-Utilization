@@ -1,20 +1,27 @@
 
+import Utils.SerializationManager;
+import Utils.Validation;
+import exceptions.DBAlreadyExistsException;
 import exceptions.DBAppException;
-import model.MetaDataManager;
+import Utils.MetaDataManager;
+import exceptions.DBDuplicateException;
+import exceptions.DBSchemaException;
 import model.SQLTerm;
+import model.Table;
 
 import java.util.*;
 import java.io.*;
-import java.io.FileWriter;
 
 public class DBApp {
-    private static MetaDataManager metaDataManager;
+    private MetaDataManager metaDataManager;
+    private SerializationManager serializationManager;
 
     // this does whatever initialization you would like
     // or leave it empty if there is no code you want to
     // execute at application startup
-    public static void init( ) throws IOException {
+    public void init( ) throws IOException {
         metaDataManager = new MetaDataManager();
+        serializationManager = new SerializationManager();
     }
 
     // following method creates one table only
@@ -26,11 +33,25 @@ public class DBApp {
     // htblColNameMin and htblColNameMax for passing minimum and maximum values
     // for data in the column. Key is the name of the column
     public void createTable(String strTableName, String strClusteringKeyColumn, Hashtable<String, String> htblColNameType,
-                            Hashtable<String,String> htblColNameMin, Hashtable<String,String> htblColNameMax ) throws DBAppException, IOException {
-        // Todo: validate schema, check for duplicates, check for invalid data types using metadata
+                            Hashtable<String,String> htblColNameMin, Hashtable<String,String> htblColNameMax) throws DBAppException, IOException {
+
+        if (Validation.isTableExists(strTableName))
+            throw new DBAlreadyExistsException("Table already exists");
+        if (!htblColNameType.containsKey(strClusteringKeyColumn))
+            throw new DBSchemaException("Clustering key does not exist");
+        if (!htblColNameType.keySet().equals(htblColNameMin.keySet()) || !htblColNameType.keySet().equals(htblColNameMax.keySet()))
+            throw new DBSchemaException("Some columns have missing metadata");
+        if (!Validation.areAllowedDataTypes(htblColNameType))
+            throw new DBSchemaException("Invalid data type");
+        if (!Validation.validateMinMax(htblColNameType, htblColNameMin, htblColNameMax))
+            throw new DBSchemaException("min, max type do not match schema OR min > max");
 
         metaDataManager.createTableMetaData(strTableName, strClusteringKeyColumn, htblColNameType, htblColNameMin, htblColNameMax);
+
+        Table table = new Table(strTableName, strClusteringKeyColumn);
+        serializationManager.serializeTable(table);
     }
+
 
     // following method inserts one row only.
     // htblColNameValue must include a value for the primary key
@@ -41,6 +62,7 @@ public class DBApp {
         // Todo: check if the table exists
 
     }
+
 
     // following method updates one row only
     // htblColNameValue holds the key and new value
@@ -55,9 +77,12 @@ public class DBApp {
 
 
         // Table table = new Table(strTableName);
-        // String ClusteringKey =table.getClusteringKeyName();
-        //htblColNameValue.put(ClusteringKey, strClusteringKeyValue);
+        // String ClusteringKey = table.getClusteringKeyName();
+        // htblColNameValue.put(ClusteringKey, strClusteringKeyValue);
+
+
     }
+
 
     // following method could be used to delete one or more rows.
     // htblColNameValue holds the key and value. This will be used in search
@@ -65,48 +90,43 @@ public class DBApp {
     // htblColNameValue enteries are ANDED together
     public void deleteFromTable(String strTableName, Hashtable<String,Object> htblColNameValue)
                                     throws DBAppException {
+        // Don't check on duplicates
 
+        // loop over all pages and tuples using stream and compare, and if equal page.remove(tuple)
     }
+
 
     public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException {
         return null;
     }
 
 
-//    public static boolean Type(String x) {
-//        if(x.equals("java.lang.String")) {
-//            return true;
-//        }else {
-//            return false;
-//        }
-//    }
 
+    public static void main(String[] args) throws Exception {
 
-
-    public static void main(String[] args) {
-        try {
-            init();
-        } catch (IOException e1) {
-            // TODO Auto-generated catch block
-            e1.printStackTrace();
-        }
         String strTableName = "Student";
         DBApp dbApp = new DBApp();
+
+        dbApp.init();
 
         Hashtable<String, String> htblColNameType = new Hashtable<String, String>( );
         htblColNameType.put("id", "java.lang.Integer");
         htblColNameType.put("name", "java.lang.String");
         htblColNameType.put("gpa", "java.lang.double");
+        Hashtable<String, String> htblColNameMin = new Hashtable<String, String>( );
+        htblColNameMin.put("id", "0");
+        htblColNameMin.put("name", "A");
+        htblColNameMin.put("gpa", "0.0");
+        Hashtable<String, String> htblColNameMax = new Hashtable<String, String>( );
+        htblColNameMax.put("id", "100");
+        htblColNameMax.put("name", "Z");
+        htblColNameMax.put("gpa", "4.0");
+
         try {
-            dbApp.createTable( strTableName, "id", htblColNameType, htblColNameType,htblColNameType);
-        } catch (DBAppException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
+            dbApp.createTable(strTableName, "id", htblColNameType, htblColNameMin, htblColNameMax);
+        } catch (Exception e) {
             e.printStackTrace();
         }
-        System.out.print("data entered");
     }
 
 

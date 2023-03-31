@@ -2,7 +2,7 @@ package model;
 
 import java.util.Hashtable;
 
-public class Tuple implements Comparable<Tuple> {
+public class Tuple implements Comparable {
     private final String clusterKeyName;
     private Hashtable<String, Object> htblColNameValue;
 
@@ -15,8 +15,8 @@ public class Tuple implements Comparable<Tuple> {
         return clusterKeyName;
     }
 
-    public Hashtable<String, Object> getHtblColNameValue() {
-        return htblColNameValue;
+    public Object getColValue(String colName) {
+        return htblColNameValue.get(colName);
     }
 
     public Object getClusterKeyValue() {
@@ -24,18 +24,30 @@ public class Tuple implements Comparable<Tuple> {
     }
 
     @Override
-    public int compareTo(Tuple o) {
-        Comparable thisValue = (Comparable) this.getClusterKeyValue();
-        Comparable otherValue = (Comparable) o.getClusterKeyValue();
+    public int compareTo(Object o) {
+        Comparable thisValue;
+        Comparable otherValue;
+
+        if (o instanceof Tuple){
+            thisValue = (Comparable) this.getClusterKeyValue();
+            otherValue = (Comparable) ((Tuple) o).getClusterKeyValue();
+        }
+        else {
+            // If o is not a tuple, it is a clusterKeyValue
+            thisValue = (Comparable) this.getClusterKeyValue();
+            otherValue = (Comparable) o;
+        }
+
         return thisValue.compareTo(otherValue);
     }
 
-    // Based on some column name
+    // compareTo based on some column name
     public int compareTo(Tuple o, String colName) {
-        Comparable thisValue = (Comparable) this.htblColNameValue.get(colName);
-        Comparable otherValue = (Comparable) o.getHtblColNameValue().get(colName);
+        Comparable thisValue = (Comparable) this.getColValue(colName);
+        Comparable otherValue = (Comparable) o.getColValue(colName);
         return thisValue.compareTo(otherValue);
     }
+
 
     // Creates a tuple with clusterKeyValue as needed to help sort based on ClusterKeyColumn using compareTo
     public static Tuple createInstance(Object clusterKeyValue) {
