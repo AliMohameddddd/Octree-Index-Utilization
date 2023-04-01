@@ -14,7 +14,7 @@ import model.Tuple;
 public class Page implements Serializable {
     private final Vector<Comparable> tuples; // allows only insertion of Tuple, Sorted by clusterKey
     private final String tableName;
-    private final int pageIndex;
+    private final int pageIndex; // start from 0
     private Object min;
     private Object max;
     private PageReference pageReference;
@@ -51,14 +51,20 @@ public class Page implements Serializable {
         updateMinMax();
     }
 
-    public void removeTuple(Tuple t) throws IOException {
+    public Tuple removeTuple(Object clusterKeyValue) throws DBAppException {
+        if (clusterKeyValue == null)
+            throw new DBNotFoundException("Null clusterKeyValue");
+        Tuple t = Tuple.createInstance(clusterKeyValue); // contains only clusterKeyValue to be used in search
         int index = Utils.binarySearch(tuples, t);
         if (index < 0)
-            return;
+            throw new DBNotFoundException("Tuple does not exist");
 
+        t = (Tuple) tuples.get(index);
         tuples.remove(index);
 
         updateMinMax();
+
+        return t;
     }
 
     public void updateTuple(Tuple t) throws DBAppException {
@@ -109,7 +115,11 @@ public class Page implements Serializable {
     }
 
     public boolean isFull() throws IOException {
-        return getSize() >= Utils.getMaxRowsCountInPage();
+        return getSize() == Utils.getMaxRowsCountInPage();
+    }
+
+    public boolean isOverflow() throws IOException {
+        return getSize() > Utils.getMaxRowsCountInPage();
     }
 
     public String getTableName() {

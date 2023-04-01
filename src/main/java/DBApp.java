@@ -1,14 +1,14 @@
 
+import Page.Page;
 import Utils.SerializationManager;
 import Utils.Validation;
-import exceptions.DBAlreadyExistsException;
-import exceptions.DBAppException;
+import exceptions.*;
 import Utils.MetaDataManager;
-import exceptions.DBDuplicateException;
-import exceptions.DBSchemaException;
 import model.SQLTerm;
 import model.Table;
+import model.Tuple;
 
+import java.text.ParseException;
 import java.util.*;
 import java.io.*;
 
@@ -33,8 +33,7 @@ public class DBApp {
     // htblColNameMin and htblColNameMax for passing minimum and maximum values
     // for data in the column. Key is the name of the column
     public void createTable(String strTableName, String strClusteringKeyColumn, Hashtable<String, String> htblColNameType,
-                            Hashtable<String,String> htblColNameMin, Hashtable<String,String> htblColNameMax) throws DBAppException, IOException {
-
+                            Hashtable<String,String> htblColNameMin, Hashtable<String,String> htblColNameMax) throws DBAppException, IOException, ParseException {
         if (Validation.isTableExists(strTableName))
             throw new DBAlreadyExistsException("Table already exists");
         if (!htblColNameType.containsKey(strClusteringKeyColumn))
@@ -49,18 +48,30 @@ public class DBApp {
         metaDataManager.createTableMetaData(strTableName, strClusteringKeyColumn, htblColNameType, htblColNameMin, htblColNameMax);
 
         Table table = new Table(strTableName, strClusteringKeyColumn);
+
         serializationManager.serializeTable(table);
     }
 
 
     // following method inserts one row only.
     // htblColNameValue must include a value for the primary key
-    public void insertIntoTable(String strTableName,
-                                Hashtable<String, Object> htblColNameValue) throws DBAppException {
+    public void insertIntoTable(String strTableName, Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException, ParseException {
+        if (!Validation.isTableExists(strTableName))
+            throw new DBNotFoundException("Table do not exist");
+        Hashtable<String, Hashtable<String, String>> htblColNameMetaData = metaDataManager.getMetaData(strTableName);
+        if (!htblColNameValue.keySet().equals(htblColNameMetaData.keySet()))
+            throw new DBSchemaException("Column names do not match table schema");
+        if (!Validation.validateSchema(htblColNameValue, htblColNameMetaData))
+            throw new DBSchemaException("Columns metadata do not match table schema");
 
-        // Todo: validate schema, check for duplicates, check for invalid data types using metadata
-        // Todo: check if the table exists
+        Table table = serializationManager.deserializeTable(strTableName, serializationManager);
 
+        String clusterKeyName = table.getClusterKeyName();
+        Tuple tuple = new Tuple(clusterKeyName, htblColNameValue);
+
+        table.insert(tuple);
+
+        serializationManager.serializeTable(table);
     }
 
 
@@ -70,15 +81,10 @@ public class DBApp {
     // strClusteringKeyValue is the value to look for to find the row to update.
     public void updateTable(String strTableName, String strClusteringKeyValue,
                             Hashtable<String, Object> htblColNameValue) throws DBAppException {
-        // Todo: validate schema, check for duplicates, check for invalid data types using metadata
         // Todo: check if the table exists
+        // Todo: validate schema, check for invalid data types using metadata
 
         // Todo: Cast strClusteringKeyValue to the correct type based on metadata
-
-
-        // Table table = new Table(strTableName);
-        // String ClusteringKey = table.getClusteringKeyName();
-        // htblColNameValue.put(ClusteringKey, strClusteringKeyValue);
 
 
     }
@@ -102,11 +108,19 @@ public class DBApp {
 
 
 
+    public Page getPage(String tableName, int pageIndex) throws DBNotFoundException, IOException {
+        Page page = serializationManager.deserializePage(tableName, pageIndex);
+        return page;
+    }
+
+
+
     public static void main(String[] args) throws Exception {
 
         String strTableName = "Student";
-        DBApp dbApp = new DBApp();
+        String strClusteringKeyColumn = "id";
 
+        DBApp dbApp = new DBApp();
         dbApp.init();
 
         Hashtable<String, String> htblColNameType = new Hashtable<String, String>( );
@@ -118,12 +132,19 @@ public class DBApp {
         htblColNameMin.put("name", "A");
         htblColNameMin.put("gpa", "0.0");
         Hashtable<String, String> htblColNameMax = new Hashtable<String, String>( );
-        htblColNameMax.put("id", "100");
+        htblColNameMax.put("id", "1000000000");
         htblColNameMax.put("name", "Z");
         htblColNameMax.put("gpa", "4.0");
 
+
+        Hashtable htblColNameValue = new Hashtable<String, Object>( );
+        htblColNameValue.put("id", 2343432);
+        htblColNameValue.put("name", "Alaa");
+        htblColNameValue.put("gpa", 0.95);
+
         try {
-            dbApp.createTable(strTableName, "id", htblColNameType, htblColNameMin, htblColNameMax);
+            dbApp.createTable(strTableName, strClusteringKeyColumn, htblColNameType, htblColNameMin, htblColNameMax);
+            dbApp.insertIntoTable(strTableName , htblColNameValue );
         } catch (Exception e) {
             e.printStackTrace();
         }

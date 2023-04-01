@@ -23,16 +23,17 @@ public class SerializationManager {
 
 
     public void serializeTable(Table table) throws IOException {
-        String tableName = table.getStrTableName();
+        String tableName = table.getTableName();
         String tablePath = TABLES_DATA_FOLDER + tableName + "/" + tableName + ".ser";
 
         serialize(table, tablePath);
     }
 
-    public Table deserializeTable(String strTableName) throws IOException, DBNotFoundException {
+    public Table deserializeTable(String strTableName, SerializationManager serializationManager) throws IOException, DBNotFoundException {
         String tablePath = TABLES_DATA_FOLDER + strTableName + "/" + strTableName + ".ser";
 
         Table table = (Table) deserialize(tablePath);
+        table.setSerializationManager(serializationManager);
         return table;
     }
 
@@ -62,7 +63,7 @@ public class SerializationManager {
         out.close();
         fileOut.close();
 
-        System.out.printf("Serialized data is saved successfully at " + filePath);
+        System.out.println("Serialized data is saved successfully at " + filePath);
     }
 
     private Object deserialize(String filePath) throws IOException, DBNotFoundException {

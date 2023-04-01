@@ -1,8 +1,9 @@
 package model;
 
+import java.io.Serializable;
 import java.util.Hashtable;
 
-public class Tuple implements Comparable {
+public class Tuple implements Comparable, Serializable {
     private final String clusterKeyName;
     private Hashtable<String, Object> htblColNameValue;
 

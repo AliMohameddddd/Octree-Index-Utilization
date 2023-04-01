@@ -1,7 +1,5 @@
 package Utils;
 
-import model.Tuple;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -12,7 +10,7 @@ import java.util.Vector;
 
 public class Utils {
     private static final String TABLES_DATA_FOLDER = "src/main/resources/Tables/";
-    private static final String PAGES_Table_FOLDER = "Pages/";
+    private static final String PAGES_TABLE_FOLDER = "Pages/";
 
     // returns the index of Object, if it is in the list; otherwise, (-(insertion point if it were to be + 1)).
     public static int binarySearch(Vector<Comparable> list, Comparable o) {
@@ -65,11 +63,11 @@ public class Utils {
     }
 
     public static String getPageFolderPath(String strTableName) {
-        return TABLES_DATA_FOLDER + strTableName + "/" + PAGES_Table_FOLDER;
+        return TABLES_DATA_FOLDER + strTableName + "/" + PAGES_TABLE_FOLDER;
     }
 
     public static String getPageFilePath(String strTableName, int pageIndex) {
-        return TABLES_DATA_FOLDER + strTableName + "/" + PAGES_Table_FOLDER + pageIndex + ".ser";
+        return TABLES_DATA_FOLDER + strTableName + "/" + PAGES_TABLE_FOLDER + pageIndex + ".ser";
     }
 
 }
