@@ -1,10 +1,8 @@
-package Utils;
+package utils;
 
 import exceptions.DBAlreadyExistsException;
 import exceptions.DBAppException;
-import exceptions.DBDuplicateException;
 import exceptions.DBNotFoundException;
-import Utils.Utils;
 
 import java.io.*;
 import java.util.Hashtable;
@@ -55,7 +53,7 @@ public class MetaDataManager {
     // returns hashtable of String key for (column name) and hashtable value
     // that have all data about column (type, isClusteringKey, indexName, indexType, min, max) and values
     public Hashtable<String, Hashtable<String, String>> getMetaData(String strTableName)
-                                                                    throws IOException, DBAppException {
+            throws IOException, DBAppException {
 
         String tableMetaDataFile = META_DATA_FOLDER + strTableName + ".csv";
         if (!(new File(tableMetaDataFile).exists()))
@@ -92,7 +90,6 @@ public class MetaDataManager {
 
         return htblColMetaData;
     }
-
 
 
 }

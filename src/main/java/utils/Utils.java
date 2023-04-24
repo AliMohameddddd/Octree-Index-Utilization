@@ -1,4 +1,4 @@
-package Utils;
+package utils;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -15,8 +15,7 @@ public class Utils {
     // returns the index of Object, if it is in the list; otherwise, (-(insertion point if it were to be + 1)).
     public static int binarySearch(Vector<Comparable> list, Comparable o) {
         Comparator<Comparable> c = new Comparator<Comparable>() {
-            public int compare(Comparable t1, Comparable t2)
-            {
+            public int compare(Comparable t1, Comparable t2) {
                 return t1.compareTo(t2);
             }
         };

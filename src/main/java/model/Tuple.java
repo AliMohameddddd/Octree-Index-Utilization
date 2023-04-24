@@ -12,6 +12,15 @@ public class Tuple implements Comparable, Serializable {
         this.htblColNameValue = htblColNameValue;
     }
 
+    // Creates a tuple with clusterKeyValue as needed to help sort based on ClusterKeyColumn using compareTo
+    public static Tuple createInstance(Object clusterKeyValue) {
+        Hashtable<String, Object> htblColNameValue = new Hashtable<>();
+        htblColNameValue.put("whateverKey", clusterKeyValue);
+
+        return new Tuple("whateverKey", htblColNameValue);
+
+    }
+
     public String getClusterKeyName() {
         return clusterKeyName;
     }
@@ -26,18 +35,14 @@ public class Tuple implements Comparable, Serializable {
 
     @Override
     public int compareTo(Object o) {
-        Comparable thisValue;
+        Comparable thisValue = (Comparable) this.getClusterKeyValue();
         Comparable otherValue;
 
-        if (o instanceof Tuple){
-            thisValue = (Comparable) this.getClusterKeyValue();
+        if (o instanceof Tuple)
             otherValue = (Comparable) ((Tuple) o).getClusterKeyValue();
-        }
-        else {
+        else
             // If o is not a tuple, it is a clusterKeyValue
-            thisValue = (Comparable) this.getClusterKeyValue();
             otherValue = (Comparable) o;
-        }
 
         return thisValue.compareTo(otherValue);
     }
@@ -47,16 +52,6 @@ public class Tuple implements Comparable, Serializable {
         Comparable thisValue = (Comparable) this.getColValue(colName);
         Comparable otherValue = (Comparable) o.getColValue(colName);
         return thisValue.compareTo(otherValue);
-    }
-
-
-    // Creates a tuple with clusterKeyValue as needed to help sort based on ClusterKeyColumn using compareTo
-    public static Tuple createInstance(Object clusterKeyValue) {
-        Hashtable<String, Object> htblColNameValue = new Hashtable<>();
-        htblColNameValue.put("whateverKey", clusterKeyValue);
-
-        return new Tuple("whateverKey", htblColNameValue);
-
     }
 
 }

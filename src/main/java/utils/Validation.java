@@ -1,9 +1,12 @@
-package Utils;
+package utils;
 
 import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.Hashtable;
+import java.util.List;
 
 public class Validation {
 
@@ -50,7 +53,6 @@ public class Validation {
         }
         return true;
     }
-
 
 
     // Case-insensitive

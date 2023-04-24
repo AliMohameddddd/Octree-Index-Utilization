@@ -1,11 +1,10 @@
 package model;
 
-import Page.Page;
-import Page.PageReference;
 import exceptions.DBAppException;
-import Utils.SerializationManager;
-import Utils.Utils;
-import exceptions.DBNotFoundException;
+import model.Page.Page;
+import model.Page.PageReference;
+import utils.SerializationManager;
+import utils.Utils;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,138 +15,131 @@ public class Table implements Serializable {
     private final Vector<Comparable> pagesReference;
     private final String tableName;
     private final String clusterKeyName;
-    private int rowsCount;
+    private int size;
     private transient SerializationManager serializationManager;
 
     public Table(String tableName, String clusterKeyName) {
         this.pagesReference = new Vector<>();
         this.tableName = tableName;
         this.clusterKeyName = clusterKeyName;
-        this.rowsCount = 0;
+        this.size = 0;
 
-        String tableFolder = Utils.getTableFolderPath(tableName);
-        String PagesFolder = Utils.getPageFolderPath(tableName);
+        String tableFolder = Utils.getPageFolderPath(tableName);
         Utils.createFolder(tableFolder);
-        Utils.createFolder(PagesFolder);
     }
 
-    public void insert(Tuple tuple) throws DBAppException, IOException {
-        if (this.getPagesCount() == 0) // If no pages already exist
+    public void insertTuple(Tuple tuple) throws DBAppException, IOException {
+        if (this.getPagesCount() == 0 || this.isFull()) // If no pages exist OR table is full
             this.addPage(new Page(this.tableName, getPagesCount()));
 
         Comparable clusterKeyValue = (Comparable) tuple.getClusterKeyValue();
-        int pageIndex = this.getPageIndex(clusterKeyValue); // the index that the tuple should be inserted in
-        if (pageIndex > this.getPagesCount() - 1) // If index is out of bounds (clusterValue is greatest)
-            pageIndex--;
+        int pageIndex = this.getInsertionPageIndex(clusterKeyValue);
 
         Page page = serializationManager.deserializePage(this.tableName, pageIndex);
+        page.insertTuple(tuple);
 
-        if (this.isFull()) // Table is Full
-            this.addPage(new Page(this.tableName, getPagesCount()));
-
-        page.addTuple(tuple);
         serializationManager.serializePage(page);
 
-        this.rowsCount++;
-        this.reArrangePages();
+        this.size++;
+        arrangePages();
     }
 
     public void delete(Tuple t) throws DBAppException, IOException {
 
     }
 
+    // returns page where this clusterKeyValue is between min and max
+    private int getInsertionPageIndex(Comparable clusterKeyValue) {
+        int index = Utils.binarySearch(pagesReference, clusterKeyValue);
+        if (index < 0) // If not between any page's min-max, get page index where it would be the new min
+            index = Utils.getInsertionIndex(index);
+        if (index > this.getPagesCount() - 1) // If index is out of bounds (clusterKeyValue is greatest)
+            index = this.getPagesCount() - 1;
 
-
-    // It is guaranteed that there are enough pages
-    private void reArrangePages() throws IOException, DBAppException {
-        this.distributePages();
-        this.removeEmptyPages();
+        return index;
     }
 
-    public void distributePages() throws IOException, DBAppException {
-        int n = this.getPagesCount() ;
-        for (int i = 0; i < n - 1; i++) {
-            Page currentPage = serializationManager.deserializePage(this.tableName, i);
-            Page nextPage = serializationManager.deserializePage(this.tableName, i + 1);
+    private void arrangePages() throws IOException, DBAppException {
+        this.distributePages();
+        this.removeEmptyPages();
 
-            if (currentPage.isOverflow()) { // Shift one tuple to next page
+        serializationManager.serializeTable(this);
+    }
+
+    // It is guaranteed that there are enough pages to distribute tuples
+    private void distributePages() throws IOException, DBAppException {
+        int n = this.getPagesCount();
+        for (int i = 0; i < n - 1; i++) {
+            PageReference currPageRef = getPageReference(i);
+            PageReference nextPageRef = getPageReference(i + 1);
+
+            if (currPageRef.isOverflow()) { // Shift 1 tuple to next page
                 int numShifts = 1;
-                shiftTuplesNext(currentPage, nextPage, numShifts);
+                shiftTuplesTo(currPageRef, nextPageRef, numShifts);
             }
-            if (!currentPage.isFull() && !nextPage.isEmpty()) { // Shift n tuples from next page to current page
-                int numShifts = currentPage.getSize();
-                shiftTuplesPrevious(nextPage, currentPage, numShifts);
+            if (!currPageRef.isFull() && !nextPageRef.isEmpty()) { // Shift tuples from next page to current page to fill space
+                int numShifts = currPageRef.getEmptySpace();
+                shiftTuplesTo(currPageRef, nextPageRef, numShifts);
             }
-            serializationManager.serializePage(currentPage); // Serialize current page after modifications
         }
     }
 
     private void removeEmptyPages() throws IOException, DBAppException {
-        int n = this.getPagesCount() ;
-        for (int i = n - 1; i >= 0; i--) {
-            Page currentPage = serializationManager.deserializePage(this.tableName, i);
-            if  (currentPage.isEmpty())
-                this.removePage(currentPage);
+        int n = getPagesCount();
+        for (int i = 0; i < n; i++) {
+            PageReference currPageRef = this.getPageReference(i);
+            if (currPageRef.isEmpty())
+                removePage(currPageRef);
         }
     }
 
+    private void shiftTuplesTo(PageReference fromPageRef, PageReference toPageRef, int numShifts) throws DBAppException, IOException {
+        Page fromPage = serializationManager.deserializePage(this.tableName, fromPageRef.getPageIndex());
+        Page toPage = serializationManager.deserializePage(this.tableName, toPageRef.getPageIndex());
+
+        Object clusterKey;
+        int n = fromPage.getSize();
+        for (int i = 0; i < numShifts && i < n; i++) {
+            if (toPage.getPageIndex() > fromPage.getPageIndex())
+                clusterKey = fromPage.getMax();
+            else
+                clusterKey = fromPage.getMin();
+            Tuple tuple = fromPage.removeTuple(clusterKey);
+            toPage.insertTuple(tuple);
+        }
+
+        serializationManager.serializePage(fromPage);
+        serializationManager.serializePage(toPage);
+    }
+
+
     private void addPage(Page page) throws IOException {
         PageReference pageReference = page.getPageReference();
-        pagesReference.add(pageReference);
+        this.pagesReference.add(pageReference);
 
+        serializationManager.serializeTable(this);
         serializationManager.serializePage(page);
     }
 
-    private void removePage(Page page) {
-        PageReference pageReference = page.getPageReference();
-        pagesReference.remove(pageReference);
+    private void removePage(PageReference pageReference) throws IOException {
+        this.pagesReference.remove(pageReference);
+
+        serializationManager.serializeTable(this);
 
         File pageFile = new File(pageReference.getPagePath());
         Utils.deleteFolder(pageFile);
     }
 
-    // returns page where this clusterKeyValue is between min and max
-    private int getPageIndex(Comparable clusterKeyValue) {
-        int index = Utils.binarySearch(pagesReference, clusterKeyValue);
-        if (index < 0) // If not found, get page index where it would be the new min
-            index = Utils.getInsertionIndex(index);
-
-        return index;
-    }
-
-    private void shiftTuplesNext(Page currentPage, Page nextPage, int numShifts) throws DBAppException {
-        int n = currentPage.getSize();
-        for (int i = 0; i < numShifts && i < n; i++) {
-            Object maxClusterKey = currentPage.getMax();
-            Tuple tuple = currentPage.removeTuple(maxClusterKey);
-            nextPage.addTuple(tuple);
-        }
-    }
-    // difference between previous and next is min, max clusterKey
-    private void shiftTuplesPrevious(Page currentPage, Page previousPage, int numShifts) throws DBAppException {
-        int n = currentPage.getSize();
-        for (int i = 0; i < numShifts && i < n; i++) {
-            Object minClusterKey = currentPage.getMin();
-            Tuple tuple = currentPage.removeTuple(minClusterKey);
-            previousPage.addTuple(tuple);
-        }
-    }
-
-
 
     public String getPagePath(int pageIndex) {
-        PageReference pageReference = (PageReference) pagesReference.get(pageIndex);
+        PageReference pageReference = (PageReference) this.pagesReference.get(pageIndex);
         String pagePath = pageReference.getPagePath();
 
         return pagePath;
     }
 
-//    public Enumeration<Comparable> getPagesReference() {
-//        return pagesReference.elements();
-//    }
-
     public PageReference getPageReference(int pageIndex) {
-        return (PageReference) pagesReference.get(pageIndex);
+        return (PageReference) this.pagesReference.get(pageIndex);
     }
 
     public String getTableName() {
@@ -159,15 +151,15 @@ public class Table implements Serializable {
     }
 
     public int getPagesCount() {
-        return pagesReference.size();
+        return this.pagesReference.size();
     }
 
     public boolean isFull() throws IOException {
-        return rowsCount >= Utils.getMaxRowsCountInPage() * getPagesCount();
+        return size >= Utils.getMaxRowsCountInPage() * getPagesCount();
     }
 
-    public int getRowsCount() {
-        return rowsCount;
+    public int getSize() {
+        return size;
     }
 
     public void setSerializationManager(SerializationManager serializationManager) {

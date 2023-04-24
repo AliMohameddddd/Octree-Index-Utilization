@@ -1,16 +1,21 @@
+// errors appear
 
-import Page.Page;
-import Utils.SerializationManager;
-import Utils.Validation;
-import exceptions.*;
-import Utils.MetaDataManager;
+
+import exceptions.DBAlreadyExistsException;
+import exceptions.DBAppException;
+import exceptions.DBNotFoundException;
+import exceptions.DBSchemaException;
 import model.SQLTerm;
 import model.Table;
 import model.Tuple;
+import utils.MetaDataManager;
+import utils.SerializationManager;
+import utils.Validation;
 
+import java.io.IOException;
 import java.text.ParseException;
-import java.util.*;
-import java.io.*;
+import java.util.Hashtable;
+import java.util.Iterator;
 
 public class DBApp {
     private MetaDataManager metaDataManager;
@@ -19,7 +24,7 @@ public class DBApp {
     // this does whatever initialization you would like
     // or leave it empty if there is no code you want to
     // execute at application startup
-    public void init( ) throws IOException {
+    public void init() throws IOException {
         metaDataManager = new MetaDataManager();
         serializationManager = new SerializationManager();
     }
@@ -33,7 +38,7 @@ public class DBApp {
     // htblColNameMin and htblColNameMax for passing minimum and maximum values
     // for data in the column. Key is the name of the column
     public void createTable(String strTableName, String strClusteringKeyColumn, Hashtable<String, String> htblColNameType,
-                            Hashtable<String,String> htblColNameMin, Hashtable<String,String> htblColNameMax) throws DBAppException, IOException, ParseException {
+                            Hashtable<String, String> htblColNameMin, Hashtable<String, String> htblColNameMax) throws DBAppException, IOException, ParseException {
         if (Validation.isTableExists(strTableName))
             throw new DBAlreadyExistsException("Table already exists");
         if (!htblColNameType.containsKey(strClusteringKeyColumn))
@@ -52,7 +57,6 @@ public class DBApp {
         serializationManager.serializeTable(table);
     }
 
-
     // following method inserts one row only.
     // htblColNameValue must include a value for the primary key
     public void insertIntoTable(String strTableName, Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException, ParseException {
@@ -64,16 +68,15 @@ public class DBApp {
         if (!Validation.validateSchema(htblColNameValue, htblColNameMetaData))
             throw new DBSchemaException("Columns metadata do not match table schema");
 
-        Table table = serializationManager.deserializeTable(strTableName, serializationManager);
+        Table table = serializationManager.deserializeTable(strTableName);
 
         String clusterKeyName = table.getClusterKeyName();
         Tuple tuple = new Tuple(clusterKeyName, htblColNameValue);
 
-        table.insert(tuple);
+        table.insertTuple(tuple);
 
         serializationManager.serializeTable(table);
     }
-
 
     // following method updates one row only
     // htblColNameValue holds the key and new value
@@ -89,28 +92,19 @@ public class DBApp {
 
     }
 
-
     // following method could be used to delete one or more rows.
     // htblColNameValue holds the key and value. This will be used in search
     // to identify which rows/tuples to delete.
     // htblColNameValue enteries are ANDED together
-    public void deleteFromTable(String strTableName, Hashtable<String,Object> htblColNameValue)
-                                    throws DBAppException {
+    public void deleteFromTable(String strTableName, Hashtable<String, Object> htblColNameValue)
+            throws DBAppException {
         // Don't check on duplicates
 
         // loop over all pages and tuples using stream and compare, and if equal page.remove(tuple)
     }
 
-
     public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException {
         return null;
-    }
-
-
-
-    public Page getPage(String tableName, int pageIndex) throws DBNotFoundException, IOException {
-        Page page = serializationManager.deserializePage(tableName, pageIndex);
-        return page;
     }
 
 
@@ -123,33 +117,31 @@ public class DBApp {
         DBApp dbApp = new DBApp();
         dbApp.init();
 
-        Hashtable<String, String> htblColNameType = new Hashtable<String, String>( );
+        Hashtable<String, String> htblColNameType = new Hashtable<String, String>();
         htblColNameType.put("id", "java.lang.Integer");
         htblColNameType.put("name", "java.lang.String");
         htblColNameType.put("gpa", "java.lang.double");
-        Hashtable<String, String> htblColNameMin = new Hashtable<String, String>( );
+        Hashtable<String, String> htblColNameMin = new Hashtable<String, String>();
         htblColNameMin.put("id", "0");
         htblColNameMin.put("name", "A");
         htblColNameMin.put("gpa", "0.0");
-        Hashtable<String, String> htblColNameMax = new Hashtable<String, String>( );
+        Hashtable<String, String> htblColNameMax = new Hashtable<String, String>();
         htblColNameMax.put("id", "1000000000");
         htblColNameMax.put("name", "Z");
         htblColNameMax.put("gpa", "4.0");
 
 
-        Hashtable htblColNameValue = new Hashtable<String, Object>( );
+        Hashtable htblColNameValue = new Hashtable<String, Object>();
         htblColNameValue.put("id", 2343432);
         htblColNameValue.put("name", "Alaa");
         htblColNameValue.put("gpa", 0.95);
 
         try {
             dbApp.createTable(strTableName, strClusteringKeyColumn, htblColNameType, htblColNameMin, htblColNameMax);
-            dbApp.insertIntoTable(strTableName , htblColNameValue );
+            dbApp.insertIntoTable(strTableName, htblColNameValue);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-
-
 
 }
