@@ -29,32 +29,25 @@ public class Page extends AbstractPage {
         return (Tuple) tuples.get(index);
     }
 
-    public void insertTuple(Tuple t) throws DBAppException {
-        int index = Utils.binarySearch(tuples, t);
+    public void insertTuple(Tuple tuple) throws DBAppException {
+        int index = Utils.binarySearch(tuples, tuple);
         if (index >= 0)
             throw new DBAlreadyExistsException("Tuple already exists");
         int insertionIndex = Utils.getInsertionIndex(index);
 
-        tuples.add(insertionIndex, t);
+        tuples.add(insertionIndex, tuple);
 
-        this.updateMinMax();
+        this.updateMinMaxSize();
     }
 
-    public Tuple removeTuple(Object clusterKeyValue) throws DBAppException {
-        if (clusterKeyValue == null)
-            throw new DBNotFoundException("Null clusterKeyValue");
-
-//        Tuple t = Tuple.createInstance(clusterKeyValue); // contains only clusterKeyValue to be used in search
-        int index = Utils.binarySearch(tuples, (Comparable) clusterKeyValue);
+    public void deleteTuple(Tuple tuple) throws DBAppException {
+        int index = Utils.binarySearch(tuples, tuple);
         if (index < 0)
             throw new DBNotFoundException("Tuple does not exist");
 
-        Tuple t = (Tuple) tuples.get(index);
         tuples.remove(index);
 
-        this.updateMinMax();
-
-        return t;
+        this.updateMinMaxSize();
     }
 
     public void updateTuple(Tuple t) throws DBAppException {
@@ -65,14 +58,14 @@ public class Page extends AbstractPage {
         // No need to sort again, since updateTable will not update clusterKey
         tuples.set(index, t);
 
-        this.updateMinMax();
+        this.updateMinMaxSize();
     }
 
     // Helper Methods
-    public void updateMinMax() {
+    public void updateMinMaxSize() {
         this.setSize(tuples.size());
-        this.setMin(((Tuple) tuples.get(0)).getClusterKeyValue());
-        this.setMax(((Tuple) tuples.get(this.getSize() - 1)).getClusterKeyValue());
+        this.setMin(getMinTuple().getClusterKeyValue());
+        this.setMax(getMaxTuple().getClusterKeyValue());
 
         pageReference.setSize(this.getSize());
         pageReference.setMin(this.getMin());
@@ -81,5 +74,13 @@ public class Page extends AbstractPage {
 
     public PageReference getPageReference() {
         return this.pageReference;
+    }
+
+    public Tuple getMaxTuple() {
+        return (Tuple) tuples.get(getSize() - 1);
+    }
+
+    public Tuple getMinTuple() {
+        return (Tuple) tuples.get(0);
     }
 }

@@ -21,6 +21,41 @@ public class DBApp {
     private MetaDataManager metaDataManager;
     private SerializationManager serializationManager;
 
+    public static void main(String[] args) throws Exception {
+
+        String strTableName = "Student";
+        String strClusteringKeyColumn = "id";
+
+        DBApp dbApp = new DBApp();
+        dbApp.init();
+
+        Hashtable<String, String> htblColNameType = new Hashtable<String, String>();
+        htblColNameType.put("id", "java.lang.Integer");
+        htblColNameType.put("name", "java.lang.String");
+        htblColNameType.put("gpa", "java.lang.double");
+        Hashtable<String, String> htblColNameMin = new Hashtable<String, String>();
+        htblColNameMin.put("id", "0");
+        htblColNameMin.put("name", "A");
+        htblColNameMin.put("gpa", "0.0");
+        Hashtable<String, String> htblColNameMax = new Hashtable<String, String>();
+        htblColNameMax.put("id", "1000000000");
+        htblColNameMax.put("name", "Z");
+        htblColNameMax.put("gpa", "4.0");
+
+
+        Hashtable htblColNameValue = new Hashtable<String, Object>();
+        htblColNameValue.put("id", 2343432);
+        htblColNameValue.put("name", "Alaa");
+        htblColNameValue.put("gpa", 0.95);
+
+        try {
+            dbApp.createTable(strTableName, strClusteringKeyColumn, htblColNameType, htblColNameMin, htblColNameMax);
+            dbApp.insertIntoTable(strTableName, htblColNameValue);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     // this does whatever initialization you would like
     // or leave it empty if there is no code you want to
     // execute at application startup
@@ -59,7 +94,9 @@ public class DBApp {
 
     // following method inserts one row only.
     // htblColNameValue must include a value for the primary key
-    public void insertIntoTable(String strTableName, Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException, ParseException {
+    public void insertIntoTable(String strTableName, Hashtable<String, Object> htblColNameValue)
+            throws DBAppException, IOException, ParseException {
+
         if (!Validation.isTableExists(strTableName))
             throw new DBNotFoundException("Table do not exist");
         Hashtable<String, Hashtable<String, String>> htblColNameMetaData = metaDataManager.getMetaData(strTableName);
@@ -84,8 +121,6 @@ public class DBApp {
     // strClusteringKeyValue is the value to look for to find the row to update.
     public void updateTable(String strTableName, String strClusteringKeyValue,
                             Hashtable<String, Object> htblColNameValue) throws DBAppException {
-        // Todo: check if the table exists
-        // Todo: validate schema, check for invalid data types using metadata
 
         // Todo: Cast strClusteringKeyValue to the correct type based on metadata
 
@@ -95,53 +130,26 @@ public class DBApp {
     // following method could be used to delete one or more rows.
     // htblColNameValue holds the key and value. This will be used in search
     // to identify which rows/tuples to delete.
-    // htblColNameValue enteries are ANDED together
+    // htblColNameValue entries are ANDED together
     public void deleteFromTable(String strTableName, Hashtable<String, Object> htblColNameValue)
-            throws DBAppException {
-        // Don't check on duplicates
+            throws DBAppException, ParseException, IOException {
 
-        // loop over all pages and tuples using stream and compare, and if equal page.remove(tuple)
+        if (!Validation.isTableExists(strTableName))
+            throw new DBNotFoundException("Table do not exist");
+        Hashtable<String, Hashtable<String, String>> htblColNameMetaData = metaDataManager.getMetaData(strTableName);
+        if (!htblColNameValue.keySet().equals(htblColNameMetaData.keySet()))
+            throw new DBSchemaException("Column names do not match table schema");
+        if (!Validation.validateSchema(htblColNameValue, htblColNameMetaData))
+            throw new DBSchemaException("Columns metadata do not match table schema");
+
+        Table table = serializationManager.deserializeTable(strTableName);
+        table.deleteTuples(htblColNameValue);
+
+        serializationManager.serializeTable(table);
     }
 
     public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException {
         return null;
-    }
-
-
-
-    public static void main(String[] args) throws Exception {
-
-        String strTableName = "Student";
-        String strClusteringKeyColumn = "id";
-
-        DBApp dbApp = new DBApp();
-        dbApp.init();
-
-        Hashtable<String, String> htblColNameType = new Hashtable<String, String>();
-        htblColNameType.put("id", "java.lang.Integer");
-        htblColNameType.put("name", "java.lang.String");
-        htblColNameType.put("gpa", "java.lang.double");
-        Hashtable<String, String> htblColNameMin = new Hashtable<String, String>();
-        htblColNameMin.put("id", "0");
-        htblColNameMin.put("name", "A");
-        htblColNameMin.put("gpa", "0.0");
-        Hashtable<String, String> htblColNameMax = new Hashtable<String, String>();
-        htblColNameMax.put("id", "1000000000");
-        htblColNameMax.put("name", "Z");
-        htblColNameMax.put("gpa", "4.0");
-
-
-        Hashtable htblColNameValue = new Hashtable<String, Object>();
-        htblColNameValue.put("id", 2343432);
-        htblColNameValue.put("name", "Alaa");
-        htblColNameValue.put("gpa", 0.95);
-
-        try {
-            dbApp.createTable(strTableName, strClusteringKeyColumn, htblColNameType, htblColNameMin, htblColNameMax);
-            dbApp.insertIntoTable(strTableName, htblColNameValue);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
 }

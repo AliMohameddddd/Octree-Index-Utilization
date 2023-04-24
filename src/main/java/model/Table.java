@@ -9,6 +9,7 @@ import utils.Utils;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Hashtable;
 import java.util.Vector;
 
 public class Table implements Serializable {
@@ -44,8 +45,34 @@ public class Table implements Serializable {
         arrangePages();
     }
 
-    public void delete(Tuple t) throws DBAppException, IOException {
+    public void deleteTuples(Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException {
+        for (int i = 0; i < getPagesCount(); i++) {
+            Page page = serializationManager.deserializePage(this.tableName, i);
 
+            Vector<Tuple> toDelete = matchesCriteria(page, htblColNameValue);
+
+            for (Tuple tuple : toDelete)
+                page.deleteTuple(tuple);
+
+            serializationManager.serializePage(page);
+        }
+
+        arrangePages();
+    }
+
+    private Vector<Tuple> matchesCriteria(Page page, Hashtable<String, Object> htblColNameValue) throws DBAppException {
+        Vector<Tuple> toDelete = new Vector<>();
+        for (int j = 0; j < page.getSize(); j++) {
+            Tuple tuple = page.getTuple(j);
+            for (String key : htblColNameValue.keySet())
+                if (!tuple.getColValue(key).equals(htblColNameValue.get(key)))
+                    break;
+            toDelete.add(tuple);
+
+            this.size--;
+        }
+
+        return toDelete;
     }
 
     // returns page where this clusterKeyValue is between min and max
@@ -61,9 +88,8 @@ public class Table implements Serializable {
 
     private void arrangePages() throws IOException, DBAppException {
         this.distributePages();
-        this.removeEmptyPages();
 
-        serializationManager.serializeTable(this);
+        this.removeEmptyPages();
     }
 
     // It is guaranteed that there are enough pages to distribute tuples
@@ -97,14 +123,14 @@ public class Table implements Serializable {
         Page fromPage = serializationManager.deserializePage(this.tableName, fromPageRef.getPageIndex());
         Page toPage = serializationManager.deserializePage(this.tableName, toPageRef.getPageIndex());
 
-        Object clusterKey;
+        Tuple tuple;
         int n = fromPage.getSize();
         for (int i = 0; i < numShifts && i < n; i++) {
             if (toPage.getPageIndex() > fromPage.getPageIndex())
-                clusterKey = fromPage.getMax();
+                tuple = fromPage.getMaxTuple();
             else
-                clusterKey = fromPage.getMin();
-            Tuple tuple = fromPage.removeTuple(clusterKey);
+                tuple = fromPage.getMinTuple();
+            fromPage.deleteTuple(tuple);
             toPage.insertTuple(tuple);
         }
 
@@ -117,14 +143,11 @@ public class Table implements Serializable {
         PageReference pageReference = page.getPageReference();
         this.pagesReference.add(pageReference);
 
-        serializationManager.serializeTable(this);
         serializationManager.serializePage(page);
     }
 
     private void removePage(PageReference pageReference) throws IOException {
         this.pagesReference.remove(pageReference);
-
-        serializationManager.serializeTable(this);
 
         File pageFile = new File(pageReference.getPagePath());
         Utils.deleteFolder(pageFile);
