@@ -2,6 +2,7 @@ package utils;
 
 import exceptions.DBNotFoundException;
 import model.Page.Page;
+import model.Page.PageReference;
 import model.Table;
 
 import java.io.*;
@@ -29,8 +30,8 @@ public class SerializationManager {
         serialize(table, tablePath);
     }
 
-    public Table deserializeTable(String strTableName) throws IOException, DBNotFoundException {
-        String tablePath = TABLES_DATA_FOLDER + strTableName + "/" + strTableName + ".ser";
+    public Table deserializeTable(String tableName) throws IOException, DBNotFoundException {
+        String tablePath = TABLES_DATA_FOLDER + tableName + "/" + tableName + ".ser";
 
         Table table = (Table) deserialize(tablePath);
         table.setSerializationManager(this);
@@ -46,9 +47,12 @@ public class SerializationManager {
         serialize(page, PagePath);
     }
 
-    public Page deserializePage(String strTableName, int pageIndex) throws IOException, DBNotFoundException {
-        String PagePath = TABLES_DATA_FOLDER + strTableName + "/" + PAGES_Table_FOLDER + pageIndex + ".ser";
+    public Page deserializePage(String tableName, PageReference pageRef) throws IOException, DBNotFoundException {
+        int pageIndex = pageRef.getPageIndex();
+        String PagePath = TABLES_DATA_FOLDER + tableName + "/" + PAGES_Table_FOLDER + pageIndex + ".ser";
+
         Page page = (Page) deserialize(PagePath);
+        page.setPageReference(pageRef);
 
         return page;
     }

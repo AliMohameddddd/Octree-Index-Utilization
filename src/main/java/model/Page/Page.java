@@ -9,8 +9,8 @@ import utils.Utils;
 import java.util.Vector;
 
 public class Page extends AbstractPage {
-    private Vector<Comparable> tuples; // allows only Tuple, sorted by clusterKey
-    private PageReference pageReference;
+    private Vector<Tuple> tuples; // allows only Tuple, sorted by clusterKey
+    private transient PageReference pageReference; // transient, to be set when deserializing from Table.pagesReference
 
     public Page(String tableName, int pageIndex) {
         super(tableName, pageIndex);
@@ -18,26 +18,23 @@ public class Page extends AbstractPage {
         this.pageReference = new PageReference(tableName, pageIndex);
     }
 
-
-    public Tuple getTuple(Object clusterKeyValue) throws DBAppException {
-        Comparable searchKey = (Comparable) clusterKeyValue; // contains only clusterKeyValue to be used in search
-        int index = Utils.binarySearch(tuples, searchKey);
+    public Tuple findTuple(Object clusterKeyValue) throws DBAppException {
+        int index = Utils.binarySearch(tuples, clusterKeyValue);
 
         if (index < 0)
             throw new DBNotFoundException("Tuple does not exist");
-
-        return (Tuple) tuples.get(index);
+        return this.tuples.get(index);
     }
 
     public void insertTuple(Tuple tuple) throws DBAppException {
         int index = Utils.binarySearch(tuples, tuple);
         if (index >= 0)
             throw new DBAlreadyExistsException("Tuple already exists");
+
         int insertionIndex = Utils.getInsertionIndex(index);
+        this.tuples.add(insertionIndex, tuple);
 
-        tuples.add(insertionIndex, tuple);
-
-        this.updateMinMaxSize();
+        updateMinMaxSize();
     }
 
     public void deleteTuple(Tuple tuple) throws DBAppException {
@@ -45,42 +42,61 @@ public class Page extends AbstractPage {
         if (index < 0)
             throw new DBNotFoundException("Tuple does not exist");
 
-        tuples.remove(index);
+        this.tuples.remove(index);
 
-        this.updateMinMaxSize();
+        updateMinMaxSize();
     }
 
-    public void updateTuple(Tuple t) throws DBAppException {
-        int index = Utils.binarySearch(tuples, t);
+    public void updateTuple(Tuple tuple) throws DBAppException {
+        int index = Utils.binarySearch(tuples, tuple);
         if (index < 0)
             throw new DBNotFoundException("Tuple does not exist");
 
         // No need to sort again, since updateTable will not update clusterKey
-        tuples.set(index, t);
+        this.tuples.set(index, tuple);
 
-        this.updateMinMaxSize();
+        updateMinMaxSize();
     }
 
-    // Helper Methods
+    // Helper Method
     public void updateMinMaxSize() {
-        this.setSize(tuples.size());
-        this.setMin(getMinTuple().getClusterKeyValue());
-        this.setMax(getMaxTuple().getClusterKeyValue());
+        setSize(tuples.size());
+        setMin(getSize() == 0 ? null : getMinTuple().getClusterKeyValue());
+        setMax(getSize() == 0 ? null : getMaxTuple().getClusterKeyValue());
 
-        pageReference.setSize(this.getSize());
-        pageReference.setMin(this.getMin());
-        pageReference.setMax(this.getMax());
+        this.pageReference.setSize(getSize());
+        this.pageReference.setMin(getMin());
+        this.pageReference.setMax(getMax());
+    }
+
+    public String toString() {
+        String s = "Page " + getPageIndex() + ":\n";
+        for (int i = 0; i < getSize(); i++)
+            s += (i + 1) + ". " + getTuple(i).toString() + "\n";
+
+        return s;
+    }
+
+
+    public Tuple getTuple(int index) {
+        return this.tuples.get(index);
     }
 
     public PageReference getPageReference() {
         return this.pageReference;
     }
 
+    public void setPageReference(PageReference pageReference) {
+        this.pageReference = pageReference;
+    }
+
     public Tuple getMaxTuple() {
-        return (Tuple) tuples.get(getSize() - 1);
+        return getTuple(getSize() - 1);
     }
 
     public Tuple getMinTuple() {
-        return (Tuple) tuples.get(0);
+        return getTuple(0);
     }
 }
+
+

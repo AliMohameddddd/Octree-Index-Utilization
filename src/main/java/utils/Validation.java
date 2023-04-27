@@ -4,7 +4,6 @@ import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Hashtable;
 import java.util.List;
 
@@ -83,7 +82,7 @@ public class Validation {
     }
 
     private static boolean isValidValue(Object value, String min, String max) throws ParseException {
-        Comparable compValue = getComparable(value);
+        Comparable compValue = (Comparable) value;
         if (isString(value))
             return compValue.compareTo(min) >= 0 && ((String) value).compareTo(max) <= 0;
         if (isInteger(value))
@@ -98,18 +97,6 @@ public class Validation {
             }
         }
         return false;
-    }
-
-    private static Comparable getComparable(Object obj) throws ParseException {
-        if (isString(obj))
-            return (String) obj;
-        if (isInteger(obj))
-            return (Integer) obj;
-        if (isDouble(obj))
-            return (Double) obj;
-        if (isDate(obj))
-            return (Date) obj;
-        return null;
     }
 
     private static Comparable getComparable(String obj, String type) throws ParseException {

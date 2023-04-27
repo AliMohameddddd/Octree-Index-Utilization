@@ -12,15 +12,6 @@ public class Tuple implements Comparable, Serializable {
         this.htblColNameValue = htblColNameValue;
     }
 
-    // Creates a tuple with clusterKeyValue as needed to help sort based on ClusterKeyColumn using compareTo
-    public static Tuple createInstance(Object clusterKeyValue) {
-        Hashtable<String, Object> htblColNameValue = new Hashtable<>();
-        htblColNameValue.put("whateverKey", clusterKeyValue);
-
-        return new Tuple("whateverKey", htblColNameValue);
-
-    }
-
     public String getClusterKeyName() {
         return clusterKeyName;
     }
@@ -33,24 +24,33 @@ public class Tuple implements Comparable, Serializable {
         return htblColNameValue.get(clusterKeyName);
     }
 
-    @Override
-    public int compareTo(Object o) {
-        Comparable thisValue = (Comparable) this.getClusterKeyValue();
-        Comparable otherValue;
-
-        if (o instanceof Tuple)
-            otherValue = (Comparable) ((Tuple) o).getClusterKeyValue();
-        else
-            // If o is not a tuple, it is a clusterKeyValue
-            otherValue = (Comparable) o;
-
-        return thisValue.compareTo(otherValue);
+    public String toString() {
+        String s = "";
+        for (String colName : htblColNameValue.keySet())
+            s += colName + ": " + htblColNameValue.get(colName) + ", ";
+        return s + "\n";
     }
+
 
     // compareTo based on some column name
     public int compareTo(Tuple o, String colName) {
         Comparable thisValue = (Comparable) this.getColValue(colName);
-        Comparable otherValue = (Comparable) o.getColValue(colName);
+        Object otherValue = o.getColValue(colName);
+
+        return thisValue.compareTo(otherValue);
+    }
+
+    @Override
+    public int compareTo(Object o) {
+        Comparable thisValue = (Comparable) getClusterKeyValue();
+        Object otherValue;
+
+        if (o instanceof Tuple)
+            otherValue = ((Tuple) o).getClusterKeyValue();
+        else
+            // If o is not a tuple, it is a clusterKeyValue
+            otherValue = o;
+
         return thisValue.compareTo(otherValue);
     }
 

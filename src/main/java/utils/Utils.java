@@ -3,8 +3,6 @@ package utils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Properties;
 import java.util.Vector;
 
@@ -12,17 +10,32 @@ public class Utils {
     private static final String TABLES_DATA_FOLDER = "src/main/resources/Tables/";
     private static final String PAGES_TABLE_FOLDER = "Pages/";
 
-    // returns the index of Object, if it is in the list; otherwise, (-(insertion point if it were to be + 1)).
-    public static int binarySearch(Vector<Comparable> list, Comparable o) {
-        Comparator<Comparable> c = new Comparator<Comparable>() {
-            public int compare(Comparable t1, Comparable t2) {
-                return t1.compareTo(t2);
-            }
-        };
 
-        int index = Collections.binarySearch(list, o, c);
-        return index;
+    // returns the index of Object, if it is in the list; otherwise, (-(insertion point if it were to be + 1)).
+    public static <T extends Comparable> int binarySearch(Vector<T> list, Object key) {
+        int low = 0;
+        int mid = 0;
+        int high = list.size() - 1;
+        boolean keyFound = false;
+
+        while (low <= high) {
+            mid = (low + high) >>> 1;
+            T midVal = list.get(mid);
+            int cmp = midVal.compareTo(key);
+
+            if (cmp < 0)
+                low = mid + 1;
+            else if (cmp > 0)
+                high = mid - 1;
+            else {
+                keyFound = true;
+                break;
+            }
+        }
+
+        return keyFound ? mid : -(low + 1);
     }
+
 
     public static int getInsertionIndex(int index) {
         if (index < 0)

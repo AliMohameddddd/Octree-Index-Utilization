@@ -5,6 +5,8 @@ import exceptions.DBAlreadyExistsException;
 import exceptions.DBAppException;
 import exceptions.DBNotFoundException;
 import exceptions.DBSchemaException;
+import model.Page.Page;
+import model.Page.PageReference;
 import model.SQLTerm;
 import model.Table;
 import model.Tuple;
@@ -51,6 +53,9 @@ public class DBApp {
         try {
             dbApp.createTable(strTableName, strClusteringKeyColumn, htblColNameType, htblColNameMin, htblColNameMax);
             dbApp.insertIntoTable(strTableName, htblColNameValue);
+            dbApp.printTable(strTableName);
+            dbApp.deleteFromTable("Student", htblColNameValue);
+            dbApp.printTable(strTableName);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -143,6 +148,7 @@ public class DBApp {
             throw new DBSchemaException("Columns metadata do not match table schema");
 
         Table table = serializationManager.deserializeTable(strTableName);
+
         table.deleteTuples(htblColNameValue);
 
         serializationManager.serializeTable(table);
@@ -150,6 +156,26 @@ public class DBApp {
 
     public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException {
         return null;
+    }
+
+
+    public void printTable(String tableName) throws DBNotFoundException, IOException {
+        Table table = serializationManager.deserializeTable(tableName);
+
+        System.out.println("Table: " + table.getTableName());
+        System.out.println("Cluster Key: " + table.getClusterKeyName());
+        System.out.println("Pages Count: " + table.getPagesCount());
+        System.out.println("Size: " + table.getSize());
+        System.out.println("Pages:-");
+
+        Page page;
+        for (int i = 0; i < table.getPagesCount(); i++) {
+            PageReference pageRef = table.getPageReference(i);
+            page = serializationManager.deserializePage(table.getTableName(), pageRef);
+
+            System.out.println(page);
+        }
+
     }
 
 }

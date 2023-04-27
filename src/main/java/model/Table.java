@@ -13,7 +13,7 @@ import java.util.Hashtable;
 import java.util.Vector;
 
 public class Table implements Serializable {
-    private final Vector<Comparable> pagesReference;
+    private final Vector<PageReference> pagesReference;
     private final String tableName;
     private final String clusterKeyName;
     private int size;
@@ -31,13 +31,17 @@ public class Table implements Serializable {
 
     public void insertTuple(Tuple tuple) throws DBAppException, IOException {
         if (this.getPagesCount() == 0 || this.isFull()) // If no pages exist OR table is full
-            this.addPage(new Page(this.tableName, getPagesCount()));
+            addPage(new Page(this.tableName, getPagesCount()));
 
-        Comparable clusterKeyValue = (Comparable) tuple.getClusterKeyValue();
-        int pageIndex = this.getInsertionPageIndex(clusterKeyValue);
+        Object clusterKeyValue = tuple.getClusterKeyValue();
+        int pageIndex = getInsertionPageIndex(clusterKeyValue);
 
-        Page page = serializationManager.deserializePage(this.tableName, pageIndex);
+        PageReference pageRef = getPageReference(pageIndex);
+        Page page = serializationManager.deserializePage(getTableName(), pageRef);
         page.insertTuple(tuple);
+        // FIX BUG: deserialized pageRef inside page is not the same one as the one in the vector, so it is not updated
+        // a possible solution is to make the pageRef inside page transient and set its reference
+        // to the one in the vector when deserializing
 
         serializationManager.serializePage(page);
 
@@ -46,8 +50,10 @@ public class Table implements Serializable {
     }
 
     public void deleteTuples(Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException {
+        Page page;
         for (int i = 0; i < getPagesCount(); i++) {
-            Page page = serializationManager.deserializePage(this.tableName, i);
+            PageReference pageRef = getPageReference(i);
+            page = serializationManager.deserializePage(getTableName(), pageRef);
 
             Vector<Tuple> toDelete = matchesCriteria(page, htblColNameValue);
 
@@ -62,8 +68,9 @@ public class Table implements Serializable {
 
     private Vector<Tuple> matchesCriteria(Page page, Hashtable<String, Object> htblColNameValue) throws DBAppException {
         Vector<Tuple> toDelete = new Vector<>();
+        Tuple tuple;
         for (int j = 0; j < page.getSize(); j++) {
-            Tuple tuple = page.getTuple(j);
+            tuple = page.getTuple(j); // test security. Can I change the value inside htbl of tuple?
             for (String key : htblColNameValue.keySet())
                 if (!tuple.getColValue(key).equals(htblColNameValue.get(key)))
                     break;
@@ -76,20 +83,20 @@ public class Table implements Serializable {
     }
 
     // returns page where this clusterKeyValue is between min and max
-    private int getInsertionPageIndex(Comparable clusterKeyValue) {
+    private int getInsertionPageIndex(Object clusterKeyValue) {
         int index = Utils.binarySearch(pagesReference, clusterKeyValue);
         if (index < 0) // If not between any page's min-max, get page index where it would be the new min
             index = Utils.getInsertionIndex(index);
-        if (index > this.getPagesCount() - 1) // If index is out of bounds (clusterKeyValue is greatest)
-            index = this.getPagesCount() - 1;
+        if (index > getPagesCount() - 1) // If index is out of bounds (clusterKeyValue is greatest)
+            index = getPagesCount() - 1;
 
         return index;
     }
 
     private void arrangePages() throws IOException, DBAppException {
-        this.distributePages();
+        distributePages();
 
-        this.removeEmptyPages();
+        removeEmptyPages();
     }
 
     // It is guaranteed that there are enough pages to distribute tuples
@@ -105,7 +112,7 @@ public class Table implements Serializable {
             }
             if (!currPageRef.isFull() && !nextPageRef.isEmpty()) { // Shift tuples from next page to current page to fill space
                 int numShifts = currPageRef.getEmptySpace();
-                shiftTuplesTo(currPageRef, nextPageRef, numShifts);
+                shiftTuplesTo(nextPageRef, currPageRef, numShifts);
             }
         }
     }
@@ -113,15 +120,15 @@ public class Table implements Serializable {
     private void removeEmptyPages() throws IOException, DBAppException {
         int n = getPagesCount();
         for (int i = 0; i < n; i++) {
-            PageReference currPageRef = this.getPageReference(i);
+            PageReference currPageRef = getPageReference(i);
             if (currPageRef.isEmpty())
                 removePage(currPageRef);
         }
     }
 
     private void shiftTuplesTo(PageReference fromPageRef, PageReference toPageRef, int numShifts) throws DBAppException, IOException {
-        Page fromPage = serializationManager.deserializePage(this.tableName, fromPageRef.getPageIndex());
-        Page toPage = serializationManager.deserializePage(this.tableName, toPageRef.getPageIndex());
+        Page fromPage = serializationManager.deserializePage(this.tableName, fromPageRef);
+        Page toPage = serializationManager.deserializePage(this.tableName, toPageRef);
 
         Tuple tuple;
         int n = fromPage.getSize();
@@ -162,15 +169,15 @@ public class Table implements Serializable {
     }
 
     public PageReference getPageReference(int pageIndex) {
-        return (PageReference) this.pagesReference.get(pageIndex);
+        return this.pagesReference.get(pageIndex);
     }
 
     public String getTableName() {
-        return tableName;
+        return this.tableName;
     }
 
     public String getClusterKeyName() {
-        return clusterKeyName;
+        return this.clusterKeyName;
     }
 
     public int getPagesCount() {
@@ -178,14 +185,16 @@ public class Table implements Serializable {
     }
 
     public boolean isFull() throws IOException {
-        return size >= Utils.getMaxRowsCountInPage() * getPagesCount();
+        return this.size >= Utils.getMaxRowsCountInPage() * getPagesCount();
     }
 
     public int getSize() {
-        return size;
+        return this.size;
     }
 
     public void setSerializationManager(SerializationManager serializationManager) {
         this.serializationManager = serializationManager;
     }
+
+
 }
