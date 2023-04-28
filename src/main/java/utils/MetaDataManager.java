@@ -69,7 +69,9 @@ public class MetaDataManager {
         while (br.ready()) {
             String[] colMetaData = br.readLine().split(","); // array Column metadata
 
-            Hashtable<String, String> htblColMetaData = getHtblColMetaData(header, colMetaData); // hashtable Column metadata
+            Hashtable<String, String> htblColMetaData = new Hashtable<>();
+            for (int i = 0; i < header.length; i++)
+                htblColMetaData.put(header[i], colMetaData[i]); // Example: htblColMetaData.put("ColumnType", Double)
 
             String colName = colMetaData[1];
             htblTableMetaData.put(colName, htblColMetaData); // put (Column Name, hashtable Column Metadata)
@@ -80,16 +82,11 @@ public class MetaDataManager {
     }
 
 
-    // Helper function to get the metadata of a column
-    private Hashtable<String, String> getHtblColMetaData(String[] header, String[] colMetaData)
-            throws IOException, DBAppException {
-
-        Hashtable<String, String> htblColMetaData = new Hashtable<>();
-        for (int i = 0; i < header.length; i++)
-            htblColMetaData.put(header[i], colMetaData[i]); // Example: htblColMetaData.put("ColumnType", Double)
-
-        return htblColMetaData;
+    public static Hashtable<String, String> getClusteringKeyMetaData(Hashtable<String, Hashtable<String, String>> htblColNameMetaData) {
+        for (Hashtable<String, String> htblColMetaData : htblColNameMetaData.values())
+            if (htblColMetaData.get("ClusteringKey").equals("True"))
+                return htblColMetaData;
+        return null;
     }
-
 
 }

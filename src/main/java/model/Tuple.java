@@ -2,14 +2,19 @@ package model;
 
 import java.io.Serializable;
 import java.util.Hashtable;
+import java.util.Set;
 
 public class Tuple implements Comparable, Serializable {
     private final String clusterKeyName;
-    private Hashtable<String, Object> htblColNameValue;
+    private final Hashtable<String, Object> htblColNameValue;
 
     public Tuple(String clusterKeyName, Hashtable<String, Object> htblColNameValue) {
         this.clusterKeyName = clusterKeyName;
         this.htblColNameValue = htblColNameValue;
+    }
+
+    public Set<String> getColNames() {
+        return htblColNameValue.keySet();
     }
 
     public String getClusterKeyName() {
@@ -20,6 +25,10 @@ public class Tuple implements Comparable, Serializable {
         return htblColNameValue.get(colName);
     }
 
+    public void setColValue(String colName, Object value) {
+        htblColNameValue.put(colName, value);
+    }
+
     public Object getClusterKeyValue() {
         return htblColNameValue.get(clusterKeyName);
     }
@@ -28,7 +37,7 @@ public class Tuple implements Comparable, Serializable {
         String s = "";
         for (String colName : htblColNameValue.keySet())
             s += colName + ": " + htblColNameValue.get(colName) + ", ";
-        return s + "\n";
+        return s;
     }
 
 

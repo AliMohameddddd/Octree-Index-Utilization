@@ -28,9 +28,9 @@ public class Validation {
                                          Hashtable<String, Hashtable<String, String>> htblColNameMetaData) throws ParseException {
         for (String colName : htblColNameValue.keySet()) {
             Hashtable<String, String> colMetaData = htblColNameMetaData.get(colName);
-            String type = colMetaData.get("ColumnType").toLowerCase();
+            String type = colMetaData.get("ColumnType");
             Object value = htblColNameValue.get(colName);
-            if (!isNeededType(value, type) || !isValidValue(value, colMetaData.get("Min"), colMetaData.get("Max")))
+            if (!isNeededType(value, type) || !isMidValue(value, colMetaData.get("Min"), colMetaData.get("Max")))
                 return false;
         }
         return true;
@@ -39,7 +39,7 @@ public class Validation {
     public static boolean validateMinMax(Hashtable<String, String> htblColNameType, Hashtable<String, String> htblColNameMin,
                                          Hashtable<String, String> htblColNameMax) throws ParseException {
         for (String colName : htblColNameType.keySet()) {
-            String type = htblColNameType.get(colName).toLowerCase();
+            String type = htblColNameType.get(colName);
             String min = htblColNameMin.get(colName);
             String max = htblColNameMax.get(colName);
             if (!isNeededType(min, type) || !isNeededType(max, type)) // Validate min and max schema
@@ -55,33 +55,35 @@ public class Validation {
 
 
     // Case-insensitive
-    private static boolean isNeededType(Object obj, String type) {
-        if (isString(obj) && type.equals("java.lang.string"))
+    public static boolean isNeededType(Object obj, String type) {
+        type = type.toLowerCase();
+        if (isString(obj) && type.contains("string"))
             return true;
-        if (isInteger(obj) && type.equals("java.lang.integer"))
+        if (isInteger(obj) && type.contains("integer"))
             return true;
-        if (isDouble(obj) && type.equals("java.lang.double"))
+        if (isDouble(obj) && type.contains("double"))
             return true;
-        if (isDate(obj) && type.equals("java.util.date"))
-            return true;
-
-        return false;
-    }
-
-    private static boolean isNeededType(String obj, String type) {
-        if (isString(obj) && type.equals("java.lang.string"))
-            return true;
-        if (isInteger(obj) && type.equals("java.lang.integer"))
-            return true;
-        if (isDouble(obj) && type.equals("java.lang.double"))
-            return true;
-        if (isDate(obj) && type.equals("java.util.date"))
+        if (isDate(obj) && type.contains("date"))
             return true;
 
         return false;
     }
 
-    private static boolean isValidValue(Object value, String min, String max) throws ParseException {
+    public static boolean isNeededType(String obj, String type) {
+        type = type.toLowerCase();
+        if (isString(obj) && type.contains("string"))
+            return true;
+        if (isInteger(obj) && type.contains("integer"))
+            return true;
+        if (isDouble(obj) && type.contains("double"))
+            return true;
+        if (isDate(obj) && type.contains("date"))
+            return true;
+
+        return false;
+    }
+
+    public static boolean isMidValue(Object value, String min, String max) throws ParseException {
         Comparable compValue = (Comparable) value;
         if (isString(value))
             return compValue.compareTo(min) >= 0 && ((String) value).compareTo(max) <= 0;
@@ -90,23 +92,23 @@ public class Validation {
         if (isDouble(value))
             return compValue.compareTo(Double.parseDouble(min)) >= 0 && ((Double) value).compareTo(Double.parseDouble(max)) <= 0;
         if (isDate(value)) {
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
             try {
-                return compValue.compareTo(format.parse(min)) >= 0 && compValue.compareTo(format.parse(max)) <= 0;
+                return compValue.compareTo(getComparable(min, "date")) >= 0 && compValue.compareTo(getComparable(max, "date")) <= 0;
             } catch (ParseException e) {
             }
         }
         return false;
     }
 
-    private static Comparable getComparable(String obj, String type) throws ParseException {
-        if (type.equals("java.lang.string"))
+    public static Comparable getComparable(String obj, String type) throws ParseException {
+        type = type.toLowerCase();
+        if (type.contains("string"))
             return obj;
-        if (type.equals("java.lang.integer"))
+        if (type.contains("integer"))
             return Integer.parseInt(obj);
-        if (type.equals("java.lang.double"))
+        if (type.contains("double"))
             return Double.parseDouble(obj);
-        if (type.equals("java.util.date")) {
+        if (type.contains("date")) {
             SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
             return format.parse(obj);
         }

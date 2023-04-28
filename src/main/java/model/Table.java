@@ -1,6 +1,7 @@
 package model;
 
 import exceptions.DBAppException;
+import exceptions.DBNotFoundException;
 import model.Page.Page;
 import model.Page.PageReference;
 import utils.SerializationManager;
@@ -34,14 +35,12 @@ public class Table implements Serializable {
             addPage(new Page(this.tableName, getPagesCount()));
 
         Object clusterKeyValue = tuple.getClusterKeyValue();
-        int pageIndex = getInsertionPageIndex(clusterKeyValue);
+        int index = Utils.binarySearch(this.pagesReference, clusterKeyValue);
+        int pageIndex = getInsertionPageIndex(index);
 
         PageReference pageRef = getPageReference(pageIndex);
         Page page = serializationManager.deserializePage(getTableName(), pageRef);
         page.insertTuple(tuple);
-        // FIX BUG: deserialized pageRef inside page is not the same one as the one in the vector, so it is not updated
-        // a possible solution is to make the pageRef inside page transient and set its reference
-        // to the one in the vector when deserializing
 
         serializationManager.serializePage(page);
 
@@ -66,25 +65,45 @@ public class Table implements Serializable {
         arrangePages();
     }
 
+    public void updateTuple(Object clusterKeyValue, Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException {
+        int pageIndex = Utils.binarySearch(this.pagesReference, clusterKeyValue);
+        if (pageIndex < 0)
+            throw new DBNotFoundException("Tuple does not exist");
+
+        PageReference pageRef = getPageReference(pageIndex);
+        Page page = serializationManager.deserializePage(getTableName(), pageRef);
+
+        Tuple tuple = page.findTuple(clusterKeyValue);
+        for (String key : htblColNameValue.keySet())
+            tuple.setColValue(key, htblColNameValue.get(key));
+
+//        page.updateTuple(tuple);
+
+        serializationManager.serializePage(page);
+    }
+
     private Vector<Tuple> matchesCriteria(Page page, Hashtable<String, Object> htblColNameValue) throws DBAppException {
         Vector<Tuple> toDelete = new Vector<>();
         Tuple tuple;
         for (int j = 0; j < page.getSize(); j++) {
-            tuple = page.getTuple(j); // test security. Can I change the value inside htbl of tuple?
+            tuple = page.getTuple(j);
+
+            boolean matches = true;
             for (String key : htblColNameValue.keySet())
                 if (!tuple.getColValue(key).equals(htblColNameValue.get(key)))
-                    break;
-            toDelete.add(tuple);
+                    matches = false;
 
-            this.size--;
+            if (matches) {
+                toDelete.add(tuple);
+                this.size--;
+            }
         }
 
         return toDelete;
     }
 
     // returns page where this clusterKeyValue is between min and max
-    private int getInsertionPageIndex(Object clusterKeyValue) {
-        int index = Utils.binarySearch(pagesReference, clusterKeyValue);
+    private int getInsertionPageIndex(int index) {
         if (index < 0) // If not between any page's min-max, get page index where it would be the new min
             index = Utils.getInsertionIndex(index);
         if (index > getPagesCount() - 1) // If index is out of bounds (clusterKeyValue is greatest)

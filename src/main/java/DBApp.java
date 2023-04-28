@@ -31,30 +31,45 @@ public class DBApp {
         DBApp dbApp = new DBApp();
         dbApp.init();
 
-        Hashtable<String, String> htblColNameType = new Hashtable<String, String>();
+        Hashtable htblColNameType = new Hashtable<String, String>();
         htblColNameType.put("id", "java.lang.Integer");
         htblColNameType.put("name", "java.lang.String");
         htblColNameType.put("gpa", "java.lang.double");
-        Hashtable<String, String> htblColNameMin = new Hashtable<String, String>();
+        Hashtable htblColNameMin = new Hashtable<String, String>();
         htblColNameMin.put("id", "0");
         htblColNameMin.put("name", "A");
         htblColNameMin.put("gpa", "0.0");
-        Hashtable<String, String> htblColNameMax = new Hashtable<String, String>();
+        Hashtable htblColNameMax = new Hashtable<String, String>();
         htblColNameMax.put("id", "1000000000");
         htblColNameMax.put("name", "Z");
         htblColNameMax.put("gpa", "4.0");
 
 
         Hashtable htblColNameValue = new Hashtable<String, Object>();
-        htblColNameValue.put("id", 2343432);
-        htblColNameValue.put("name", "Alaa");
+        htblColNameValue.put("id", 23873);
         htblColNameValue.put("gpa", 0.95);
+        htblColNameValue.put("name", "Alaa");
+
+        Hashtable htblColNameValue2 = new Hashtable<String, Object>();
+        htblColNameValue2.put("id", 1);
+        htblColNameValue2.put("name", "Alaa");
+        htblColNameValue2.put("gpa", 1.5);
+
+        Hashtable updatedHtblColNameValue = new Hashtable<String, Object>();
+        updatedHtblColNameValue.put("gpa", 1.95);
 
         try {
             dbApp.createTable(strTableName, strClusteringKeyColumn, htblColNameType, htblColNameMin, htblColNameMax);
+
             dbApp.insertIntoTable(strTableName, htblColNameValue);
+            dbApp.insertIntoTable(strTableName, htblColNameValue2);
             dbApp.printTable(strTableName);
+
             dbApp.deleteFromTable("Student", htblColNameValue);
+            dbApp.printTable(strTableName);
+
+
+            dbApp.updateTable("Student", "1", updatedHtblColNameValue);
             dbApp.printTable(strTableName);
         } catch (Exception e) {
             e.printStackTrace();
@@ -79,6 +94,7 @@ public class DBApp {
     // for data in the column. Key is the name of the column
     public void createTable(String strTableName, String strClusteringKeyColumn, Hashtable<String, String> htblColNameType,
                             Hashtable<String, String> htblColNameMin, Hashtable<String, String> htblColNameMax) throws DBAppException, IOException, ParseException {
+
         if (Validation.isTableExists(strTableName))
             throw new DBAlreadyExistsException("Table already exists");
         if (!htblColNameType.containsKey(strClusteringKeyColumn))
@@ -104,6 +120,7 @@ public class DBApp {
 
         if (!Validation.isTableExists(strTableName))
             throw new DBNotFoundException("Table do not exist");
+
         Hashtable<String, Hashtable<String, String>> htblColNameMetaData = metaDataManager.getMetaData(strTableName);
         if (!htblColNameValue.keySet().equals(htblColNameMetaData.keySet()))
             throw new DBSchemaException("Column names do not match table schema");
@@ -125,11 +142,28 @@ public class DBApp {
     // htblColNameValue will not include clustering key as column name
     // strClusteringKeyValue is the value to look for to find the row to update.
     public void updateTable(String strTableName, String strClusteringKeyValue,
-                            Hashtable<String, Object> htblColNameValue) throws DBAppException {
+                            Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException, ParseException {
 
-        // Todo: Cast strClusteringKeyValue to the correct type based on metadata
+        if (!Validation.isTableExists(strTableName))
+            throw new DBNotFoundException("Table do not exist");
 
+        Hashtable<String, Hashtable<String, String>> htblColNameMetaData = metaDataManager.getMetaData(strTableName);
+        if (!Validation.validateSchema(htblColNameValue, htblColNameMetaData))
+            throw new DBSchemaException("Columns metadata do not match table schema");
 
+        Hashtable<String, String> htblClusteringKeyMetaData = MetaDataManager.getClusteringKeyMetaData(htblColNameMetaData);
+        if (htblClusteringKeyMetaData == null || !Validation.isNeededType(strClusteringKeyValue, htblClusteringKeyMetaData.get("ColumnType")))
+            throw new DBSchemaException("Clustering is not an accepted type");
+
+        Object clusteringKeyValue = Validation.getComparable(strClusteringKeyValue, htblClusteringKeyMetaData.get("ColumnType"));
+        if (!Validation.isMidValue(clusteringKeyValue, htblClusteringKeyMetaData.get("Min"), htblClusteringKeyMetaData.get("Max")))
+            throw new DBSchemaException("Clustering value is not in the range");
+
+        Table table = serializationManager.deserializeTable(strTableName);
+
+        table.updateTuple(clusteringKeyValue, htblColNameValue);
+
+        serializationManager.serializeTable(table);
     }
 
     // following method could be used to delete one or more rows.
@@ -141,6 +175,7 @@ public class DBApp {
 
         if (!Validation.isTableExists(strTableName))
             throw new DBNotFoundException("Table do not exist");
+
         Hashtable<String, Hashtable<String, String>> htblColNameMetaData = metaDataManager.getMetaData(strTableName);
         if (!htblColNameValue.keySet().equals(htblColNameMetaData.keySet()))
             throw new DBSchemaException("Column names do not match table schema");
