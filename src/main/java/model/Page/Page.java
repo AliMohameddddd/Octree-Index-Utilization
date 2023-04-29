@@ -6,6 +6,7 @@ import exceptions.DBNotFoundException;
 import model.Tuple;
 import utils.Utils;
 
+import java.io.IOException;
 import java.util.Vector;
 
 public class Page extends AbstractPage {
@@ -70,11 +71,18 @@ public class Page extends AbstractPage {
     }
 
     public String toString() {
-        String s = "Page " + getPageIndex() + ":\n";
-        for (int i = 0; i < getSize(); i++)
-            s += (i + 1) + ". " + getTuple(i).toString() + "\n";
+        try {
+            int pageIndex = getPageIndex();
+            int pageMaxSize = Utils.getMaxRowsCountInPage();
 
-        return s;
+            String s = "Page " + (pageIndex + 1) + ":\n";
+            for (int i = 0; i < getSize(); i++)
+                s += (pageIndex*pageMaxSize + i + 1) + ". " + getTuple(i).toString() + "\n";
+            return s;
+        } catch (IOException e) {
+            return null;
+        }
+
     }
 
 

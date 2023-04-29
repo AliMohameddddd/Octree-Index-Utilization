@@ -2,6 +2,7 @@ package model;
 
 import exceptions.DBAppException;
 import exceptions.DBNotFoundException;
+import exceptions.DBQueryException;
 import model.Page.Page;
 import model.Page.PageReference;
 import utils.SerializationManager;
@@ -74,8 +75,11 @@ public class Table implements Serializable {
         Page page = serializationManager.deserializePage(getTableName(), pageRef);
 
         Tuple tuple = page.findTuple(clusterKeyValue);
-        for (String key : htblColNameValue.keySet())
+        for (String key : htblColNameValue.keySet()) {
+            if (key.equals(this.clusterKeyName))
+                throw new DBQueryException("Cannot update cluster key value");
             tuple.setColValue(key, htblColNameValue.get(key));
+        }
 
 //        page.updateTuple(tuple);
 

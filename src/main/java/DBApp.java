@@ -1,6 +1,3 @@
-// errors appear
-
-
 import exceptions.DBAlreadyExistsException;
 import exceptions.DBAppException;
 import exceptions.DBNotFoundException;
@@ -24,12 +21,11 @@ public class DBApp {
     private SerializationManager serializationManager;
 
     public static void main(String[] args) throws Exception {
+        DBApp dbApp = new DBApp();
+        dbApp.init();
 
         String strTableName = "Student";
         String strClusteringKeyColumn = "id";
-
-        DBApp dbApp = new DBApp();
-        dbApp.init();
 
         Hashtable htblColNameType = new Hashtable<String, String>();
         htblColNameType.put("id", "java.lang.Integer");
@@ -55,6 +51,7 @@ public class DBApp {
         htblColNameValue2.put("name", "Alaa");
         htblColNameValue2.put("gpa", 1.5);
 
+
         Hashtable updatedHtblColNameValue = new Hashtable<String, Object>();
         updatedHtblColNameValue.put("gpa", 1.95);
 
@@ -65,11 +62,10 @@ public class DBApp {
             dbApp.insertIntoTable(strTableName, htblColNameValue2);
             dbApp.printTable(strTableName);
 
-            dbApp.deleteFromTable("Student", htblColNameValue);
+            dbApp.deleteFromTable(strTableName, htblColNameValue);
             dbApp.printTable(strTableName);
 
-
-            dbApp.updateTable("Student", "1", updatedHtblColNameValue);
+            dbApp.updateTable(strTableName, "1", updatedHtblColNameValue);
             dbApp.printTable(strTableName);
         } catch (Exception e) {
             e.printStackTrace();
@@ -100,7 +96,7 @@ public class DBApp {
         if (!htblColNameType.containsKey(strClusteringKeyColumn))
             throw new DBSchemaException("Clustering key does not exist");
         if (!htblColNameType.keySet().equals(htblColNameMin.keySet()) || !htblColNameType.keySet().equals(htblColNameMax.keySet()))
-            throw new DBSchemaException("Some columns have missing metadata");
+            throw new DBSchemaException("Columns' names do not match");
         if (!Validation.areAllowedDataTypes(htblColNameType))
             throw new DBSchemaException("Invalid data type");
         if (!Validation.validateMinMax(htblColNameType, htblColNameMin, htblColNameMax))
@@ -208,7 +204,7 @@ public class DBApp {
             PageReference pageRef = table.getPageReference(i);
             page = serializationManager.deserializePage(table.getTableName(), pageRef);
 
-            System.out.println(page);
+            System.out.print(page);
         }
 
     }
