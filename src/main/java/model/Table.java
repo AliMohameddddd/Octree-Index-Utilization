@@ -11,24 +11,26 @@ import utils.Utils;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Hashtable;
-import java.util.Vector;
+import java.util.*;
 
 public class Table implements Serializable {
     private final Vector<PageReference> pagesReference;
+    private final Vector<Index> indices;
     private final String tableName;
     private final String clusterKeyName;
     private int size;
-    private transient SerializationManager serializationManager;
 
     public Table(String tableName, String clusterKeyName) {
         this.pagesReference = new Vector<>();
+        this.indices = new Vector<>();
         this.tableName = tableName;
         this.clusterKeyName = clusterKeyName;
         this.size = 0;
 
-        String tableFolder = Utils.getPageFolderPath(tableName);
-        Utils.createFolder(tableFolder);
+        String pagesFolder = Utils.getPageFolderPath(tableName);
+        String IndexFolder = Utils.getIndexFolderPath(tableName);
+        Utils.createFolder(pagesFolder);
+        Utils.createFolder(IndexFolder);
     }
 
     public void insertTuple(Tuple tuple) throws DBAppException, IOException {
@@ -40,10 +42,10 @@ public class Table implements Serializable {
         int pageIndex = getInsertionPageIndex(index);
 
         PageReference pageRef = getPageReference(pageIndex);
-        Page page = serializationManager.deserializePage(getTableName(), pageRef);
+        Page page = SerializationManager.deserializePage(getTableName(), pageRef);
         page.insertTuple(tuple);
 
-        serializationManager.serializePage(page);
+        SerializationManager.serializePage(page);
 
         this.size++;
         arrangePages();
@@ -51,16 +53,17 @@ public class Table implements Serializable {
 
     public void deleteTuples(Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException {
         Page page;
-        for (int i = 0; i < getPagesCount(); i++) {
-            PageReference pageRef = getPageReference(i);
-            page = serializationManager.deserializePage(getTableName(), pageRef);
+        for (PageReference pageRef : pagesReference) {
+            page = SerializationManager.deserializePage(getTableName(), pageRef);
 
             Vector<Tuple> toDelete = matchesCriteria(page, htblColNameValue);
 
-            for (Tuple tuple : toDelete)
+            for (Tuple tuple : toDelete) {
                 page.deleteTuple(tuple);
+                this.size--;
+            }
 
-            serializationManager.serializePage(page);
+            SerializationManager.serializePage(page);
         }
 
         arrangePages();
@@ -72,7 +75,7 @@ public class Table implements Serializable {
             throw new DBNotFoundException("Tuple does not exist");
 
         PageReference pageRef = getPageReference(pageIndex);
-        Page page = serializationManager.deserializePage(getTableName(), pageRef);
+        Page page = SerializationManager.deserializePage(getTableName(), pageRef);
 
         Tuple tuple = page.findTuple(clusterKeyValue);
         for (String key : htblColNameValue.keySet()) {
@@ -83,7 +86,38 @@ public class Table implements Serializable {
 
 //        page.updateTuple(tuple);
 
-        serializationManager.serializePage(page);
+        SerializationManager.serializePage(page);
+    }
+
+
+    public Iterator selectTuples(Map<String, Object> htblColNameValue, String[] compareOperators, String[] strarrOperators) throws DBNotFoundException, IOException {
+        List<Tuple> tuples = new Vector<>();
+        Page page;
+        for (PageReference pageRef : pagesReference) {
+            page = SerializationManager.deserializePage(getTableName(), pageRef);
+            for (int j = 0; j < page.getSize(); j++) {
+                Tuple tuple = page.getTuple(j);
+
+                Boolean[] matches = new Boolean[htblColNameValue.size()];
+                Arrays.fill(matches, true);
+
+                Object[] keySet = htblColNameValue.keySet().toArray();
+                for (int k = 0; k < htblColNameValue.size(); k++) {
+                    String key = (String) keySet[k];
+                    if (!compareOperators(tuple.getColValue(key), htblColNameValue.get(key), compareOperators[k]))
+                        matches[k] = false;
+                }
+
+                if (getBetweenOperators(matches, strarrOperators)) // compare between each two conditions and get final result
+                    tuples.add(tuple);
+            }
+        }
+        return tuples.iterator();
+    }
+    
+    public void createIndex(String[] ColNames, Hashtable<String, Object> min, Hashtable<String, Object> max) throws DBAppException {
+        this.indices.add(new Index(ColNames, min, max));
+        
     }
 
     private Vector<Tuple> matchesCriteria(Page page, Hashtable<String, Object> htblColNameValue) throws DBAppException {
@@ -97,10 +131,8 @@ public class Table implements Serializable {
                 if (!tuple.getColValue(key).equals(htblColNameValue.get(key)))
                     matches = false;
 
-            if (matches) {
+            if (matches)
                 toDelete.add(tuple);
-                this.size--;
-            }
         }
 
         return toDelete;
@@ -116,6 +148,14 @@ public class Table implements Serializable {
         return index;
     }
 
+    private void insertIntoIndex() {
+
+    }
+
+    private void removeFromIndex() {
+
+    }
+
     private void arrangePages() throws IOException, DBAppException {
         distributePages();
 
@@ -123,7 +163,7 @@ public class Table implements Serializable {
     }
 
     // It is guaranteed that there are enough pages to distribute tuples
-    private void distributePages() throws IOException, DBAppException {
+    private void distributePages(/*int startIndex*/) throws IOException, DBAppException {
         int n = this.getPagesCount();
         for (int i = 0; i < n - 1; i++) {
             PageReference currPageRef = getPageReference(i);
@@ -140,7 +180,7 @@ public class Table implements Serializable {
         }
     }
 
-    private void removeEmptyPages() throws IOException, DBAppException {
+    private void removeEmptyPages() throws IOException {
         int n = getPagesCount();
         for (int i = 0; i < n; i++) {
             PageReference currPageRef = getPageReference(i);
@@ -150,8 +190,8 @@ public class Table implements Serializable {
     }
 
     private void shiftTuplesTo(PageReference fromPageRef, PageReference toPageRef, int numShifts) throws DBAppException, IOException {
-        Page fromPage = serializationManager.deserializePage(this.tableName, fromPageRef);
-        Page toPage = serializationManager.deserializePage(this.tableName, toPageRef);
+        Page fromPage = SerializationManager.deserializePage(this.tableName, fromPageRef);
+        Page toPage = SerializationManager.deserializePage(this.tableName, toPageRef);
 
         Tuple tuple;
         int n = fromPage.getSize();
@@ -160,12 +200,52 @@ public class Table implements Serializable {
                 tuple = fromPage.getMaxTuple();
             else
                 tuple = fromPage.getMinTuple();
+            // update pageIndex in index
             fromPage.deleteTuple(tuple);
             toPage.insertTuple(tuple);
         }
 
-        serializationManager.serializePage(fromPage);
-        serializationManager.serializePage(toPage);
+        SerializationManager.serializePage(fromPage);
+        SerializationManager.serializePage(toPage);
+    }
+
+    private boolean compareOperators(Object t, Object o, String operator) {
+        Comparable t1 = (Comparable) t;
+
+        switch (operator) {
+            case ">":
+                return t1.compareTo(o) > 0;
+            case ">=":
+                return t1.compareTo(o) >= 0;
+            case "<":
+                return t1.compareTo(o) < 0;
+            case "<=":
+                return t1.compareTo(o) <= 0;
+            case "=":
+                return t1.compareTo(o) == 0;
+            case "!=":
+                return t1.compareTo(o) != 0;
+            default:
+                return false;
+        }
+    }
+
+    private boolean getBetweenOperators(Boolean[] betweenOperators, String[] operators) {
+        Boolean result = betweenOperators[0];
+        for (int i = 1; i < operators.length; i++) {
+            String operator = operators[i];
+
+            if (operator.equals("AND"))
+                result = result && betweenOperators[i];
+            else if (operator.equals("OR"))
+                result = result || betweenOperators[i];
+            else if (operator.equals("XOR"))
+                result = result ^ betweenOperators[i];
+            else
+                return false;
+        }
+
+        return result;
     }
 
 
@@ -173,7 +253,7 @@ public class Table implements Serializable {
         PageReference pageReference = page.getPageReference();
         this.pagesReference.add(pageReference);
 
-        serializationManager.serializePage(page);
+        SerializationManager.serializePage(page);
     }
 
     private void removePage(PageReference pageReference) throws IOException {
@@ -207,17 +287,11 @@ public class Table implements Serializable {
         return this.pagesReference.size();
     }
 
-    public boolean isFull() throws IOException {
-        return this.size >= Utils.getMaxRowsCountInPage() * getPagesCount();
-    }
-
     public int getSize() {
         return this.size;
     }
 
-    public void setSerializationManager(SerializationManager serializationManager) {
-        this.serializationManager = serializationManager;
+    public boolean isFull() throws IOException {
+        return this.size >= Utils.getMaxRowsCountInPage() * getPagesCount();
     }
-
-
 }

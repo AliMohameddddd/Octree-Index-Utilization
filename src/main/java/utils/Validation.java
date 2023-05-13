@@ -3,9 +3,7 @@ package utils;
 import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Hashtable;
-import java.util.List;
+import java.util.*;
 
 public class Validation {
 
@@ -115,6 +113,75 @@ public class Validation {
         return null;
     }
 
+    public static Comparable getMidComparable(Comparable x, Comparable y) {
+        if (x instanceof String)
+            return getMidString((String) x, (String) y);
+        if (x instanceof Integer)
+            return ((Integer) x + (Integer) y) / 2;
+        if (x instanceof Double)
+            return ((Double) x + (Double) y) / 2;
+        if (x instanceof Date)
+            return getMidDate((Date) x, (Date) y);
+        return null;
+    }
+
+    private static String getMidString(String S, String T) {
+        int N = Math.min(S.length(), T.length());
+        int[] a1 = new int[N + 1];
+
+        for (int i = 0; i < N; i++)
+            a1[i + 1] = (int)S.charAt(i) - 97
+                    + (int)T.charAt(i) - 97;
+
+        // Iterate from right to left
+        // and add carry to next position
+        for (int i = N; i >= 1; i--) {
+            a1[i - 1] += (int)a1[i] / 26;
+            a1[i] %= 26;
+        }
+
+        // Reduce the number to find the middle
+        // string by dividing each position by 2
+        for (int i = 0; i <= N; i++) {
+            // If current value is odd,
+            // carry 26 to the next index value
+            if ((a1[i] & 1) != 0)
+                if (i + 1 <= N)
+                    a1[i + 1] += 26;
+
+            a1[i] = (int)a1[i] / 2;
+        }
+
+        String ans = "";
+        for (int i = 1; i <= N; i++)
+            ans += (char)(a1[i] + 97);
+        return ans;
+
+    }
+
+    private static Date getMidDate(Date startDate, Date endDate) {
+        // Calculate the middle point in milliseconds
+        long timeDifference = endDate.getTime() - startDate.getTime();
+        long middlePoint = startDate.getTime() + (timeDifference / 2);
+
+        // Create the middle date
+        return new Date(middlePoint);
+    }
+
+
+    public static Comparable increment(Comparable x) {
+        if (x instanceof Integer)
+            return (Integer) x + 1;
+        else if (x instanceof Double)
+            return (Double) x + 1;
+        else if (x instanceof String)
+            return (String) x + "a";
+        else if (x instanceof Date) {
+            Date date = (Date) x;
+            return new Date(date.getTime() + 60*60*24*1000);
+        }
+        return null;
+    }
 
     private static boolean isString(Object obj) {
         return obj instanceof String;

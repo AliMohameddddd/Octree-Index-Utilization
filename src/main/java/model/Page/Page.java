@@ -77,7 +77,7 @@ public class Page extends AbstractPage {
 
             String s = "Page " + (pageIndex + 1) + ":\n";
             for (int i = 0; i < getSize(); i++)
-                s += (pageIndex*pageMaxSize + i + 1) + ". " + getTuple(i).toString() + "\n";
+                s += (pageIndex * pageMaxSize + i + 1) + ". " + getTuple(i).toString() + "\n";
             return s;
         } catch (IOException e) {
             return null;

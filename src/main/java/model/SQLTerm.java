@@ -3,10 +3,10 @@ package model;
 public class SQLTerm {
 
     // Should be private and accessed through getters and setters but for the example's sake we will leave it like this
-    String _strTableName;
-    String _strColumnName;
-    String _strOperator;
-    Object _objValue;
+    public String _strTableName;
+    public String _strColumnName;
+    public String _strOperator;
+    public Object _objValue;
 
     public SQLTerm(String strTableName, String strColumnName, String strOperator, Object objValue) {
         this._strTableName = strTableName;

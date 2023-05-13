@@ -9,6 +9,7 @@ import java.util.Vector;
 public class Utils {
     private static final String TABLES_DATA_FOLDER = "src/main/resources/Tables/";
     private static final String PAGES_TABLE_FOLDER = "Pages/";
+    private static final String Indexes_TABLE_FOLDER = "Indexes/";
 
 
     // returns the index of Object, if it is in the list; otherwise, (-(insertion point if it were to be + 1)).
@@ -82,4 +83,11 @@ public class Utils {
         return TABLES_DATA_FOLDER + strTableName + "/" + PAGES_TABLE_FOLDER + pageIndex + ".ser";
     }
 
+    public static String getIndexFolderPath(String strTableName) {
+        return TABLES_DATA_FOLDER + strTableName + "/" + Indexes_TABLE_FOLDER;
+    }
+
+    public static String getIndexPath(String strTableName, String indexName) {
+        return TABLES_DATA_FOLDER + strTableName + "/" + Indexes_TABLE_FOLDER + indexName + ".ser";
+    }
 }

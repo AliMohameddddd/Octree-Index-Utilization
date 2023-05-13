@@ -10,9 +10,8 @@ import java.util.Hashtable;
 public class MetaDataManager {
     private static final String META_DATA_FOLDER = "src/main/resources/metadata/";
 
-
     // Delete all metadata files and create a new folder
-    public MetaDataManager() throws IOException {
+    public static void createMetaDataFolder() throws IOException {
         File metaFolder = new File(META_DATA_FOLDER);
 
         if (metaFolder.exists())
@@ -22,8 +21,14 @@ public class MetaDataManager {
             throw new IOException("Failed to create metadata folder");
     }
 
+    public static Hashtable<String, String> getClusteringKeyMetaData(Hashtable<String, Hashtable<String, String>> htblColNameMetaData) {
+        for (Hashtable<String, String> htblColMetaData : htblColNameMetaData.values())
+            if (htblColMetaData.get("ClusteringKey").equals("True"))
+                return htblColMetaData;
+        return null;
+    }
 
-    public void createTableMetaData(String strTableName, String strClusteringKeyColumn, Hashtable<String, String> htblColNameType,
+    public static void createTableMetaData(String strTableName, String strClusteringKeyColumn, Hashtable<String, String> htblColNameType,
                                     Hashtable<String, String> htblColNameMin, Hashtable<String, String> htblColNameMax) throws DBAppException, IOException {
 
         String tableMetaDataFile = META_DATA_FOLDER + strTableName + ".csv";
@@ -48,11 +53,10 @@ public class MetaDataManager {
         System.out.println("Table MetaData created successfully ar " + tableMetaDataFile);
     }
 
-
     // getMetaData
-    // returns hashtable of String key for (column name) and hashtable value
+    // returns Hashtable of String key for (column name) and Hashtable value
     // that have all data about column (type, isClusteringKey, indexName, indexType, min, max) and values
-    public Hashtable<String, Hashtable<String, String>> getMetaData(String strTableName)
+    public static Hashtable<String, Hashtable<String, String>> getMetaData(String strTableName)
             throws IOException, DBAppException {
 
         String tableMetaDataFile = META_DATA_FOLDER + strTableName + ".csv";
@@ -64,7 +68,7 @@ public class MetaDataManager {
         BufferedReader br = new BufferedReader(fr);
         Hashtable<String, Hashtable<String, String>> htblTableMetaData = new Hashtable<>();
 
-        // read the header and then insert into hashtable (key: column name, value: hashtable of column metadata)
+        // read the header and then insert into Hashtable (key: column name, value: Hashtable of column metadata)
         String[] header = br.readLine().split(",");
         while (br.ready()) {
             String[] colMetaData = br.readLine().split(","); // array Column metadata
@@ -74,19 +78,11 @@ public class MetaDataManager {
                 htblColMetaData.put(header[i], colMetaData[i]); // Example: htblColMetaData.put("ColumnType", Double)
 
             String colName = colMetaData[1];
-            htblTableMetaData.put(colName, htblColMetaData); // put (Column Name, hashtable Column Metadata)
+            htblTableMetaData.put(colName, htblColMetaData); // put (Column Name, Hashtable Column Metadata)
         }
         br.close();
 
         return htblTableMetaData;
-    }
-
-
-    public static Hashtable<String, String> getClusteringKeyMetaData(Hashtable<String, Hashtable<String, String>> htblColNameMetaData) {
-        for (Hashtable<String, String> htblColMetaData : htblColNameMetaData.values())
-            if (htblColMetaData.get("ClusteringKey").equals("True"))
-                return htblColMetaData;
-        return null;
     }
 
 }
