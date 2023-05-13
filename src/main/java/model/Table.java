@@ -33,7 +33,7 @@ public class Table implements Serializable {
         Utils.createFolder(IndexFolder);
     }
 
-    public void insertTuple(Tuple tuple) throws DBAppException, IOException {
+    public void insertTuple(Tuple tuple) throws DBAppException {
         if (this.getPagesCount() == 0 || this.isFull()) // If no pages exist OR table is full
             addPage(new Page(this.tableName, getPagesCount()));
 
@@ -51,7 +51,7 @@ public class Table implements Serializable {
         arrangePages();
     }
 
-    public void deleteTuples(Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException {
+    public void deleteTuples(Hashtable<String, Object> htblColNameValue) throws DBAppException {
         Page page;
         for (PageReference pageRef : pagesReference) {
             page = SerializationManager.deserializePage(getTableName(), pageRef);
@@ -69,7 +69,7 @@ public class Table implements Serializable {
         arrangePages();
     }
 
-    public void updateTuple(Object clusterKeyValue, Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException {
+    public void updateTuple(Object clusterKeyValue, Hashtable<String, Object> htblColNameValue) throws DBAppException {
         int pageIndex = Utils.binarySearch(this.pagesReference, clusterKeyValue);
         if (pageIndex < 0)
             throw new DBNotFoundException("Tuple does not exist");
@@ -90,7 +90,7 @@ public class Table implements Serializable {
     }
 
 
-    public Iterator selectTuples(Map<String, Object> htblColNameValue, String[] compareOperators, String[] strarrOperators) throws DBNotFoundException, IOException {
+    public Iterator selectTuples(Map<String, Object> htblColNameValue, String[] compareOperators, String[] strarrOperators) throws DBAppException {
         List<Tuple> tuples = new Vector<>();
         Page page;
         for (PageReference pageRef : pagesReference) {
@@ -156,14 +156,14 @@ public class Table implements Serializable {
 
     }
 
-    private void arrangePages() throws IOException, DBAppException {
+    private void arrangePages() throws DBAppException {
         distributePages();
 
         removeEmptyPages();
     }
 
     // It is guaranteed that there are enough pages to distribute tuples
-    private void distributePages(/*int startIndex*/) throws IOException, DBAppException {
+    private void distributePages(/*int startIndex*/) throws DBAppException {
         int n = this.getPagesCount();
         for (int i = 0; i < n - 1; i++) {
             PageReference currPageRef = getPageReference(i);
@@ -180,7 +180,7 @@ public class Table implements Serializable {
         }
     }
 
-    private void removeEmptyPages() throws IOException {
+    private void removeEmptyPages() {
         int n = getPagesCount();
         for (int i = 0; i < n; i++) {
             PageReference currPageRef = getPageReference(i);
@@ -189,7 +189,7 @@ public class Table implements Serializable {
         }
     }
 
-    private void shiftTuplesTo(PageReference fromPageRef, PageReference toPageRef, int numShifts) throws DBAppException, IOException {
+    private void shiftTuplesTo(PageReference fromPageRef, PageReference toPageRef, int numShifts) throws DBAppException {
         Page fromPage = SerializationManager.deserializePage(this.tableName, fromPageRef);
         Page toPage = SerializationManager.deserializePage(this.tableName, toPageRef);
 
@@ -249,14 +249,14 @@ public class Table implements Serializable {
     }
 
 
-    private void addPage(Page page) throws IOException {
+    private void addPage(Page page) throws DBAppException {
         PageReference pageReference = page.getPageReference();
         this.pagesReference.add(pageReference);
 
         SerializationManager.serializePage(page);
     }
 
-    private void removePage(PageReference pageReference) throws IOException {
+    private void removePage(PageReference pageReference) {
         this.pagesReference.remove(pageReference);
 
         File pageFile = new File(pageReference.getPagePath());
@@ -291,7 +291,11 @@ public class Table implements Serializable {
         return this.size;
     }
 
-    public boolean isFull() throws IOException {
-        return this.size >= Utils.getMaxRowsCountInPage() * getPagesCount();
+    public boolean isFull() throws DBQueryException {
+        try {
+            return this.size >= Utils.getMaxRowsCountInPage() * getPagesCount();
+        } catch (IOException e) {
+            throw new DBQueryException("Error while getting max rows count in page");
+        }
     }
 }

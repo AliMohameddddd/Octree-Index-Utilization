@@ -1,5 +1,7 @@
 package model.Page;
 
+import exceptions.DBAppException;
+import exceptions.DBQueryException;
 import utils.Utils;
 
 import java.io.IOException;
@@ -58,16 +60,28 @@ public abstract class AbstractPage implements Serializable {
         return this.size == 0;
     }
 
-    public boolean isFull() throws IOException {
-        return this.size == Utils.getMaxRowsCountInPage();
+    public boolean isFull() throws DBAppException {
+        try {
+            return this.size == Utils.getMaxRowsCountInPage();
+        } catch (IOException e) {
+            throw new DBQueryException("Failed to get max rows count in page");
+        }
     }
 
-    public boolean isOverflow() throws IOException {
-        return this.size > Utils.getMaxRowsCountInPage();
+    public boolean isOverflow() throws DBAppException {
+        try {
+            return this.size > Utils.getMaxRowsCountInPage();
+        } catch (IOException e) {
+            throw new DBQueryException("Failed to get max rows count in page");
+        }
     }
 
-    public int getEmptySpace() throws IOException {
-        return Utils.getMaxRowsCountInPage() - getSize();
+    public int getEmptySpace() throws DBAppException {
+        try {
+            return Utils.getMaxRowsCountInPage() - getSize();
+        } catch (IOException e) {
+            throw new DBQueryException("Failed to get max rows count in page");
+        }
     }
 
 }

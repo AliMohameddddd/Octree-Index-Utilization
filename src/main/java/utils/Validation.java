@@ -1,5 +1,8 @@
 package utils;
 
+import exceptions.DBAppException;
+import exceptions.DBSchemaException;
+
 import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -23,7 +26,7 @@ public class Validation {
     }
 
     public static boolean validateSchema(Hashtable<String, Object> htblColNameValue,
-                                         Hashtable<String, Hashtable<String, String>> htblColNameMetaData) throws ParseException {
+                                         Hashtable<String, Hashtable<String, String>> htblColNameMetaData) throws DBAppException {
         for (String colName : htblColNameValue.keySet()) {
             Hashtable<String, String> colMetaData = htblColNameMetaData.get(colName);
             String type = colMetaData.get("ColumnType");
@@ -35,7 +38,7 @@ public class Validation {
     }
 
     public static boolean validateMinMax(Hashtable<String, String> htblColNameType, Hashtable<String, String> htblColNameMin,
-                                         Hashtable<String, String> htblColNameMax) throws ParseException {
+                                         Hashtable<String, String> htblColNameMax) throws DBAppException {
         for (String colName : htblColNameType.keySet()) {
             String type = htblColNameType.get(colName);
             String min = htblColNameMin.get(colName);
@@ -81,7 +84,7 @@ public class Validation {
         return false;
     }
 
-    public static boolean isMidValue(Object value, String min, String max) throws ParseException {
+    public static boolean isMidValue(Object value, String min, String max) throws DBAppException {
         Comparable compValue = (Comparable) value;
         if (isString(value))
             return compValue.compareTo(min) >= 0 && ((String) value).compareTo(max) <= 0;
@@ -89,16 +92,12 @@ public class Validation {
             return compValue.compareTo(Integer.parseInt(min)) >= 0 && ((Integer) value).compareTo(Integer.parseInt(max)) <= 0;
         if (isDouble(value))
             return compValue.compareTo(Double.parseDouble(min)) >= 0 && ((Double) value).compareTo(Double.parseDouble(max)) <= 0;
-        if (isDate(value)) {
-            try {
-                return compValue.compareTo(getComparable(min, "date")) >= 0 && compValue.compareTo(getComparable(max, "date")) <= 0;
-            } catch (ParseException e) {
-            }
-        }
+        if (isDate(value))
+            return compValue.compareTo(getComparable(min, "date")) >= 0 && compValue.compareTo(getComparable(max, "date")) <= 0;
         return false;
     }
 
-    public static Comparable getComparable(String obj, String type) throws ParseException {
+    public static Comparable getComparable(String obj, String type) throws DBAppException {
         type = type.toLowerCase();
         if (type.contains("string"))
             return obj;
@@ -106,10 +105,13 @@ public class Validation {
             return Integer.parseInt(obj);
         if (type.contains("double"))
             return Double.parseDouble(obj);
-        if (type.contains("date")) {
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
-            return format.parse(obj);
-        }
+        if (type.contains("date"))
+            try {
+                SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+                return format.parse(obj);
+            } catch (ParseException e) {
+                throw new DBSchemaException("Invalid date format");
+            }
         return null;
     }
 

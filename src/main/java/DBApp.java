@@ -1,7 +1,4 @@
-import exceptions.DBAlreadyExistsException;
-import exceptions.DBAppException;
-import exceptions.DBNotFoundException;
-import exceptions.DBSchemaException;
+import exceptions.*;
 import model.Page.Page;
 import model.Page.PageReference;
 import model.SQLTerm;
@@ -18,7 +15,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 
 public class DBApp {
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws DBAppException {
         DBApp dbApp = new DBApp();
         dbApp.init();
 
@@ -89,9 +86,13 @@ public class DBApp {
     // this does whatever initialization you would like
     // or leave it empty if there is no code you want to
     // execute at application startup
-    public void init() throws IOException {
-        SerializationManager.createTablesFolder();
-        MetaDataManager.createMetaDataFolder();
+    public void init() throws DBAppException {
+        try {
+            SerializationManager.createTablesFolder();
+            MetaDataManager.createMetaDataFolder();
+        } catch (IOException e) {
+            throw new DBQueryException("Error creating folders");
+        }
     }
 
     // following method creates one table only
@@ -103,7 +104,7 @@ public class DBApp {
     // htblColNameMin and htblColNameMax for passing minimum and maximum values
     // for data in the column. Key is the name of the column
     public void createTable(String strTableName, String strClusteringKeyColumn, Hashtable<String, String> htblColNameType,
-                            Hashtable<String, String> htblColNameMin, Hashtable<String, String> htblColNameMax) throws DBAppException, IOException, ParseException {
+                            Hashtable<String, String> htblColNameMin, Hashtable<String, String> htblColNameMax) throws DBAppException {
 
         if (Validation.isTableExists(strTableName))
             throw new DBAlreadyExistsException("Table already exists");
@@ -133,8 +134,7 @@ public class DBApp {
 
     // following method inserts one row only.
     // htblColNameValue must include a value for the primary key
-    public void insertIntoTable(String strTableName, Hashtable<String, Object> htblColNameValue)
-            throws DBAppException, IOException, ParseException {
+    public void insertIntoTable(String strTableName, Hashtable<String, Object> htblColNameValue) throws DBAppException {
 
         if (!Validation.isTableExists(strTableName))
             throw new DBNotFoundException("Table do not exist");
@@ -160,7 +160,7 @@ public class DBApp {
     // htblColNameValue will not include clustering key as column name
     // strClusteringKeyValue is the value to look for to find the row to update.
     public void updateTable(String strTableName, String strClusteringKeyValue,
-                            Hashtable<String, Object> htblColNameValue) throws DBAppException, IOException, ParseException {
+                            Hashtable<String, Object> htblColNameValue) throws DBAppException {
 
         if (!Validation.isTableExists(strTableName))
             throw new DBNotFoundException("Table do not exist");
@@ -207,7 +207,7 @@ public class DBApp {
         SerializationManager.serializeTable(table);
     }
 
-    public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException, IOException {
+    public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException {
         // 3 Indexed Columns and in order
         String strTableName = arrSQLTerms[0]._strTableName;
 
@@ -225,7 +225,7 @@ public class DBApp {
         return table.selectTuples(htblColNameValue, compareOperators, strarrOperators);
     }
 
-    public static void printTable(String tableName) throws DBNotFoundException, IOException {
+    public static void printTable(String tableName) throws DBAppException {
         Table table = SerializationManager.deserializeTable(tableName);
 
         System.out.println("Table: " + table.getTableName());
