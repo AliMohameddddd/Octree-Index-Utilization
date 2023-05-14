@@ -102,13 +102,13 @@ public class Table implements Serializable {
                 Arrays.fill(matches, true);
 
                 Object[] keySet = htblColNameValue.keySet().toArray();
-                for (int k = 0; k < htblColNameValue.size(); k++) {
+                for (int k = 0; k < keySet.length; k++) {
                     String key = (String) keySet[k];
-                    if (!compareOperators(tuple.getColValue(key), htblColNameValue.get(key), compareOperators[k]))
+                    if (!isConditionTrue(tuple.getColValue(key), htblColNameValue.get(key), compareOperators[k]))
                         matches[k] = false;
                 }
 
-                if (getBetweenOperators(matches, strarrOperators)) // compare between each two conditions and get final result
+                if (isTupleSatisfy(matches, strarrOperators))
                     tuples.add(tuple);
             }
         }
@@ -209,7 +209,7 @@ public class Table implements Serializable {
         SerializationManager.serializePage(toPage);
     }
 
-    private boolean compareOperators(Object t, Object o, String operator) {
+    private boolean isConditionTrue(Object t, Object o, String operator) {
         Comparable t1 = (Comparable) t;
 
         switch (operator) {
@@ -230,17 +230,17 @@ public class Table implements Serializable {
         }
     }
 
-    private boolean getBetweenOperators(Boolean[] betweenOperators, String[] operators) {
-        Boolean result = betweenOperators[0];
-        for (int i = 1; i < operators.length; i++) {
-            String operator = operators[i];
+    private boolean isTupleSatisfy(Boolean[] conditionsBool, String[] betweenConditions) {
+        Boolean result = conditionsBool[0];
+        for (int i = 1; i < betweenConditions.length; i++) {
+            String operator = betweenConditions[i-1];
 
-            if (operator.equals("AND"))
-                result = result && betweenOperators[i];
-            else if (operator.equals("OR"))
-                result = result || betweenOperators[i];
-            else if (operator.equals("XOR"))
-                result = result ^ betweenOperators[i];
+            if (operator.equals("AND".toLowerCase()))
+                result = result && conditionsBool[i];
+            else if (operator.equals("OR".toLowerCase()))
+                result = result || conditionsBool[i];
+            else if (operator.equals("XOR".toLowerCase()))
+                result = result ^ conditionsBool[i];
             else
                 return false;
         }
