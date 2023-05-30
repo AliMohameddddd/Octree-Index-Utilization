@@ -85,7 +85,6 @@ public class Page extends AbstractPage {
 
     }
 
-
     public Tuple getTuple(int index) {
         return this.tuples.get(index);
     }

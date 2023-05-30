@@ -43,7 +43,10 @@ public class Table implements Serializable {
 
         PageReference pageRef = getPageReference(pageIndex);
         Page page = SerializationManager.deserializePage(getTableName(), pageRef);
+
         page.insertTuple(tuple);
+
+        this.insertIntoIndices(tuple, pageIndex);
 
         SerializationManager.serializePage(page);
 
@@ -52,22 +55,79 @@ public class Table implements Serializable {
     }
 
     public void deleteTuples(Hashtable<String, Object> htblColNameValue) throws DBAppException {
+        // Conditions are ANDed together
+        String[] logicalOperators = new String[htblColNameValue.size()];
+        Arrays.fill(logicalOperators, "AND");
+
+        // compareOperator is always "="
+        String[] compareOperators = new String[htblColNameValue.size()];
+        Arrays.fill(compareOperators, "=");
+
+        Vector<PageReference> newPagesReference = new Vector<>();
+        if (this.canUseIndex(htblColNameValue.keySet().toArray(new String[0]), logicalOperators)) {
+            Index index = this.getIndex(htblColNameValue.keySet().toArray(new String[0]));
+
+            HashSet<Integer> pages = index.getPagesIndex(htblColNameValue);
+            for (Integer pageIndex : pages)
+                newPagesReference.add(this.pagesReference.get(pageIndex));
+        } else
+            newPagesReference = this.pagesReference;
+
         Page page;
-        for (PageReference pageRef : pagesReference) {
+        for (PageReference pageRef : newPagesReference) {
             page = SerializationManager.deserializePage(getTableName(), pageRef);
+            int pageIndex = page.getPageIndex();
+            for (int i = 0; i < page.getSize(); i++) {
+                Tuple tuple = page.getTuple(i);
 
-            Vector<Tuple> toDelete = matchesCriteria(page, htblColNameValue);
+                Boolean[] conditionsBool = tuple.AreConditionsSatisfied(htblColNameValue, compareOperators);
 
-            for (Tuple tuple : toDelete) {
-                page.deleteTuple(tuple);
-                this.size--;
+                if (tuple.isTermSatisfied(conditionsBool, logicalOperators)) {
+                    page.deleteTuple(tuple);
+                    this.removeFromIndex(tuple, pageIndex);
+                    this.size--;
+                }
             }
-
             SerializationManager.serializePage(page);
         }
 
         arrangePages();
     }
+
+    public Iterator selectTuples(Hashtable<String, Object> min, Hashtable<String, Object> max, Map<String, Object> htblColNameValue, String[] compareOperators, String[] logicalOperators) throws DBAppException {
+        Vector<PageReference> newPagesReference = new Vector<>();
+        boolean flag = false;
+        for (String compareOperator : compareOperators)
+            if (!compareOperator.equals("!=")) {
+                flag = true;
+                break;
+            }
+
+        if (this.canUseIndex(htblColNameValue.keySet().toArray(new String[0]), logicalOperators) && !flag) {
+            Index index = this.getIndex(htblColNameValue.keySet().toArray(new String[0]));
+
+            HashSet<Integer> pages = index.getPagesIndex(min, max);
+            for (Integer pageIndex : pages)
+                newPagesReference.add(this.pagesReference.get(pageIndex));
+        } else
+            newPagesReference = this.pagesReference;
+
+        List<Tuple> tuples = new Vector<>();
+        Page page;
+        for (PageReference pageRef : newPagesReference) {
+            page = SerializationManager.deserializePage(getTableName(), pageRef);
+            for (int j = 0; j < page.getSize(); j++) {
+                Tuple tuple = page.getTuple(j);
+
+                Boolean[] conditionsBool = tuple.AreConditionsSatisfied(htblColNameValue, compareOperators);
+
+                if (tuple.isTermSatisfied(conditionsBool, logicalOperators))
+                    tuples.add(tuple);
+            }
+        }
+        return tuples.iterator();
+    }
+
 
     public void updateTuple(Object clusterKeyValue, Hashtable<String, Object> htblColNameValue) throws DBAppException {
         int pageIndex = Utils.binarySearch(this.pagesReference, clusterKeyValue);
@@ -78,64 +138,64 @@ public class Table implements Serializable {
         Page page = SerializationManager.deserializePage(getTableName(), pageRef);
 
         Tuple tuple = page.findTuple(clusterKeyValue);
+        this.removeFromIndex(tuple, pageIndex);
+
         for (String key : htblColNameValue.keySet()) {
-            if (key.equals(this.clusterKeyName))
+            if (key.equalsIgnoreCase(this.clusterKeyName))
                 throw new DBQueryException("Cannot update cluster key value");
             tuple.setColValue(key, htblColNameValue.get(key));
         }
 
-//        page.updateTuple(tuple);
+        this.insertIntoIndices(tuple, pageIndex);
 
         SerializationManager.serializePage(page);
     }
 
 
-    public Iterator selectTuples(Map<String, Object> htblColNameValue, String[] compareOperators, String[] strarrOperators) throws DBAppException {
-        List<Tuple> tuples = new Vector<>();
+    public void createIndex(String[] ColNames, Hashtable<String, Object> min, Hashtable<String, Object> max) throws DBAppException {
+        Index index = new Index(ColNames, min, max);
+        this.indices.add(index);
+
+        // populate
         Page page;
         for (PageReference pageRef : pagesReference) {
             page = SerializationManager.deserializePage(getTableName(), pageRef);
             for (int j = 0; j < page.getSize(); j++) {
                 Tuple tuple = page.getTuple(j);
-
-                Boolean[] matches = new Boolean[htblColNameValue.size()];
-                Arrays.fill(matches, true);
-
-                Object[] keySet = htblColNameValue.keySet().toArray();
-                for (int k = 0; k < keySet.length; k++) {
-                    String key = (String) keySet[k];
-                    if (!isConditionTrue(tuple.getColValue(key), htblColNameValue.get(key), compareOperators[k]))
-                        matches[k] = false;
-                }
-
-                if (isTupleSatisfy(matches, strarrOperators))
-                    tuples.add(tuple);
+                index.insertTuple(tuple, pageRef.getPageIndex());
             }
         }
-        return tuples.iterator();
-    }
-    
-    public void createIndex(String[] ColNames, Hashtable<String, Object> min, Hashtable<String, Object> max) throws DBAppException {
-        this.indices.add(new Index(ColNames, min, max));
-        
     }
 
-    private Vector<Tuple> matchesCriteria(Page page, Hashtable<String, Object> htblColNameValue) throws DBAppException {
-        Vector<Tuple> toDelete = new Vector<>();
-        Tuple tuple;
-        for (int j = 0; j < page.getSize(); j++) {
-            tuple = page.getTuple(j);
+    public boolean canUseIndex(String[] colNames, String[] logicOperators) {
+        Index index = getIndex(colNames);
+        if (index == null) // if no index exists on these columns
+            return false;
+        if (Arrays.stream(logicOperators).allMatch(operator -> operator.equalsIgnoreCase("AND")))
+            return true;
 
-            boolean matches = true;
-            for (String key : htblColNameValue.keySet())
-                if (!tuple.getColValue(key).equals(htblColNameValue.get(key)))
-                    matches = false;
+        // indexed columns must be ANDed together and in order from query columns
+        ArrayList<String> indexColNames = new ArrayList<>(Arrays.asList(index.getColNames()));
+        for (int i = 0; i < colNames.length; i++)
+            if (indexColNames.contains(colNames[i].toLowerCase())) {
+                indexColNames.remove(colNames[i]);
+                for (int j = i + 1; !indexColNames.isEmpty(); j++) {
+                    if (!indexColNames.contains(colNames[j].toLowerCase()) || !logicOperators[j - 1].equalsIgnoreCase("AND"))
+                        return false;
+                    indexColNames.remove(colNames[j]);
+                }
+            } else
+                continue;
 
-            if (matches)
-                toDelete.add(tuple);
+        return false;
+    }
+
+    private Index getIndex(String[] ColNames) {
+        for (Index index : indices) {
+            if (index.isIndexOn(ColNames))
+                return index;
         }
-
-        return toDelete;
+        return null;
     }
 
     // returns page where this clusterKeyValue is between min and max
@@ -148,12 +208,19 @@ public class Table implements Serializable {
         return index;
     }
 
-    private void insertIntoIndex() {
-
+    private void insertIntoIndices(Tuple tuple, int pageIndex) throws DBAppException {
+        for (int i = 0; i < this.indices.size(); i++)
+            indices.get(i).insertTuple(tuple, pageIndex);
     }
 
-    private void removeFromIndex() {
+    private void removeFromIndex(Tuple tuple, int pageIndex) throws DBAppException {
+        for (Index index : this.indices)
+            index.deleteTuple(tuple, pageIndex);
+    }
 
+    private void updateIndex(Tuple tuple, int oldPageIndex, int newPageIndex) throws DBAppException {
+        for (Index index : this.indices)
+            index.updateTuplePageIndex(tuple, oldPageIndex, newPageIndex);
     }
 
     private void arrangePages() throws DBAppException {
@@ -203,49 +270,12 @@ public class Table implements Serializable {
             // update pageIndex in index
             fromPage.deleteTuple(tuple);
             toPage.insertTuple(tuple);
+
+            this.updateIndex(tuple, fromPageRef.getPageIndex(), toPageRef.getPageIndex());
         }
 
         SerializationManager.serializePage(fromPage);
         SerializationManager.serializePage(toPage);
-    }
-
-    private boolean isConditionTrue(Object t, Object o, String operator) {
-        Comparable t1 = (Comparable) t;
-
-        switch (operator) {
-            case ">":
-                return t1.compareTo(o) > 0;
-            case ">=":
-                return t1.compareTo(o) >= 0;
-            case "<":
-                return t1.compareTo(o) < 0;
-            case "<=":
-                return t1.compareTo(o) <= 0;
-            case "=":
-                return t1.compareTo(o) == 0;
-            case "!=":
-                return t1.compareTo(o) != 0;
-            default:
-                return false;
-        }
-    }
-
-    private boolean isTupleSatisfy(Boolean[] conditionsBool, String[] betweenConditions) {
-        Boolean result = conditionsBool[0];
-        for (int i = 1; i < betweenConditions.length; i++) {
-            String operator = betweenConditions[i-1];
-
-            if (operator.equals("AND".toLowerCase()))
-                result = result && conditionsBool[i];
-            else if (operator.equals("OR".toLowerCase()))
-                result = result || conditionsBool[i];
-            else if (operator.equals("XOR".toLowerCase()))
-                result = result ^ conditionsBool[i];
-            else
-                return false;
-        }
-
-        return result;
     }
 
 

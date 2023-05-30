@@ -2,6 +2,7 @@ package utils;
 
 import exceptions.DBAppException;
 import exceptions.DBSchemaException;
+import model.SQLTerm;
 
 import java.io.File;
 import java.text.ParseException;
@@ -25,8 +26,9 @@ public class Validation {
         return true;
     }
 
-    public static boolean validateSchema(Hashtable<String, Object> htblColNameValue,
-                                         Hashtable<String, Hashtable<String, String>> htblColNameMetaData) throws DBAppException {
+    // check if column names are unique & exist, types satisfy schema.
+    public static boolean validateSchema(Map<String, Object> htblColNameValue,
+                                         Map<String, Hashtable<String, String>> htblColNameMetaData) throws DBAppException {
         for (String colName : htblColNameValue.keySet()) {
             Hashtable<String, String> colMetaData = htblColNameMetaData.get(colName);
             String type = colMetaData.get("ColumnType");
@@ -54,10 +56,34 @@ public class Validation {
         return true;
     }
 
+    public static boolean areValidConditions(SQLTerm[] arrSQLTerms) {
+        String[] arrAllowedConditionOperators = {">", ">=", "<", "<=", "=", "!="};
+        List<String> allowedConditionOperators = Arrays.asList(arrAllowedConditionOperators);
 
-    // Case-insensitive
-    public static boolean isNeededType(Object obj, String type) {
+        String strTableName = arrSQLTerms[0]._strTableName;
+        for (int i = 0; i < arrSQLTerms.length; i++) {
+            SQLTerm sqlTerm = arrSQLTerms[i];
+            if (!sqlTerm._strTableName.equalsIgnoreCase(strTableName) || !allowedConditionOperators.contains(sqlTerm._strOperator.toLowerCase()))
+                return false;
+        }
+        return true;
+    }
+
+    public static boolean areValidLogicOperators(String[] arrConditions) {
+        String[] arrAllowedLogicOperators = {"AND", "OR", "XOR"};
+        List<String> allowedLogicOperators = Arrays.asList(arrAllowedLogicOperators);
+
+        for (int i = 0; i < arrConditions.length; i++) {
+            String condition = arrConditions[i];
+            if (!allowedLogicOperators.contains(condition.toUpperCase()))
+                return false;
+        }
+        return true;
+    }
+
+    public static boolean isNeededType(String obj, String type) {
         type = type.toLowerCase();
+
         if (isString(obj) && type.contains("string"))
             return true;
         if (isInteger(obj) && type.contains("integer"))
@@ -70,8 +96,9 @@ public class Validation {
         return false;
     }
 
-    public static boolean isNeededType(String obj, String type) {
+    public static boolean isNeededType(Object obj, String type) {
         type = type.toLowerCase();
+
         if (isString(obj) && type.contains("string"))
             return true;
         if (isInteger(obj) && type.contains("integer"))
@@ -115,6 +142,35 @@ public class Validation {
         return null;
     }
 
+    public static Comparable increment(Comparable x) {
+        if (x instanceof Integer)
+            return (Integer) x + 1;
+        else if (x instanceof Double)
+            return (Double) x + 0.01;
+        else if (x instanceof String)
+            return (String) x + "a";
+        else if (x instanceof Date) {
+            Date date = (Date) x;
+            return new Date(date.getTime() + 60 * 60 * 24 * 1000);
+        }
+        return null;
+    }
+
+
+    public static Object decrement(Comparable objValue) {
+        if (objValue instanceof Integer)
+            return (Integer) objValue - 1;
+        else if (objValue instanceof Double)
+            return (Double) objValue - 1;
+        else if (objValue instanceof String)
+            return ((String) objValue).substring(0, ((String) objValue).length() - 1);
+        else if (objValue instanceof Date) {
+            Date date = (Date) objValue;
+            return new Date(date.getTime() - 60 * 60 * 24 * 1000);
+        }
+        return null;
+    }
+
     public static Comparable getMidComparable(Comparable x, Comparable y) {
         if (x instanceof String)
             return getMidString((String) x, (String) y);
@@ -132,13 +188,13 @@ public class Validation {
         int[] a1 = new int[N + 1];
 
         for (int i = 0; i < N; i++)
-            a1[i + 1] = (int)S.charAt(i) - 97
-                    + (int)T.charAt(i) - 97;
+            a1[i + 1] = (int) S.charAt(i) - 97
+                    + (int) T.charAt(i) - 97;
 
         // Iterate from right to left
         // and add carry to next position
         for (int i = N; i >= 1; i--) {
-            a1[i - 1] += (int)a1[i] / 26;
+            a1[i - 1] += (int) a1[i] / 26;
             a1[i] %= 26;
         }
 
@@ -151,12 +207,12 @@ public class Validation {
                 if (i + 1 <= N)
                     a1[i + 1] += 26;
 
-            a1[i] = (int)a1[i] / 2;
+            a1[i] = (int) a1[i] / 2;
         }
 
         String ans = "";
         for (int i = 1; i <= N; i++)
-            ans += (char)(a1[i] + 97);
+            ans += (char) (a1[i] + 97);
         return ans;
 
     }
@@ -168,21 +224,6 @@ public class Validation {
 
         // Create the middle date
         return new Date(middlePoint);
-    }
-
-
-    public static Comparable increment(Comparable x) {
-        if (x instanceof Integer)
-            return (Integer) x + 1;
-        else if (x instanceof Double)
-            return (Double) x + 1;
-        else if (x instanceof String)
-            return (String) x + "a";
-        else if (x instanceof Date) {
-            Date date = (Date) x;
-            return new Date(date.getTime() + 60*60*24*1000);
-        }
-        return null;
     }
 
     private static boolean isString(Object obj) {
@@ -225,14 +266,12 @@ public class Validation {
     }
 
     private static boolean isDate(String str) {
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
         try {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
             format.parse(str);
         } catch (Exception e) {
             return false;
         }
         return true;
     }
-
-
 }

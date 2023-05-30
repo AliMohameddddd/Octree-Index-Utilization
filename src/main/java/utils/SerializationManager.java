@@ -3,7 +3,6 @@ package utils;
 import exceptions.DBAppException;
 import exceptions.DBNotFoundException;
 import exceptions.DBQueryException;
-import model.Index;
 import model.Page.Page;
 import model.Page.PageReference;
 import model.Table;
@@ -59,22 +58,6 @@ public class SerializationManager {
 
         return page;
     }
-
-    public static void serializeIndex(String tableName, Index index) throws DBAppException {
-        String indexName = index.getIndexName();
-        String indexPath = TABLES_DATA_FOLDER + tableName + "/" + Indexes_TABLE_FOLDER + indexName + ".ser";
-
-        serialize(index, indexPath);
-    }
-
-    public static Index deserializeIndex(String tableName, String indexName) throws DBAppException {
-        String indexPath = TABLES_DATA_FOLDER + tableName + "/" + Indexes_TABLE_FOLDER + indexName + ".ser";
-
-        Index index = (Index) deserialize(indexPath);
-
-        return index;
-    }
-
 
     // Helper methods
     private static void serialize(Object obj, String filePath) throws DBAppException {

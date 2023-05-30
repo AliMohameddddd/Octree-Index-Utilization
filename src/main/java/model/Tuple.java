@@ -2,6 +2,7 @@ package model;
 
 import java.io.Serializable;
 import java.util.Hashtable;
+import java.util.Map;
 import java.util.Set;
 
 public class Tuple implements Comparable, Serializable {
@@ -40,14 +41,60 @@ public class Tuple implements Comparable, Serializable {
         return s;
     }
 
+    public Boolean[] AreConditionsSatisfied(Map<String, Object> htblColNameValue, String[] compareOperators) {
+        Boolean[] bool = new Boolean[htblColNameValue.size()];
 
-    // compareTo based on some column name
-    public int compareTo(Tuple o, String colName) {
-        Comparable thisValue = (Comparable) this.getColValue(colName);
-        Object otherValue = o.getColValue(colName);
+        String[] keySet = htblColNameValue.keySet().toArray(new String[0]);
+        for (int i = 0; i < htblColNameValue.size(); i++) {
+            String colName = keySet[i];
+            Comparable thisValue = (Comparable) this.getColValue(colName);
+            Object otherValue = htblColNameValue.get(colName);
+            String operator = compareOperators[i];
 
-        return thisValue.compareTo(otherValue);
+            int compare = thisValue.compareTo(otherValue);
+            bool[i] = getCompareResult(compare, operator);
+        }
+        return bool;
     }
+
+    public Boolean isTermSatisfied(Boolean[] conditions, String[] logicalOperators) {
+        Boolean result = conditions[0];
+        for (int i = 1; i < conditions.length; i++) {
+            String operator = logicalOperators[i - 1].toUpperCase();
+            switch (operator) {
+                case "AND":
+                    result = result && conditions[i];
+                    break;
+                case "OR":
+                    result = result || conditions[i];
+                    break;
+                case "XOR":
+                    result = result ^ conditions[i];
+                    break;
+            }
+        }
+        return result;
+    }
+
+
+    private boolean getCompareResult(int compare, String operator) {
+        switch (operator) {
+            case ">":
+                return compare > 0;
+            case ">=":
+                return compare >= 0;
+            case "<":
+                return compare < 0;
+            case "<=":
+                return compare <= 0;
+            case "=":
+                return compare == 0;
+            case "!=":
+                return compare != 0;
+        }
+        return false;
+    }
+
 
     @Override
     public int compareTo(Object o) {

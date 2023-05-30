@@ -6,7 +6,9 @@ import exceptions.DBNotFoundException;
 import exceptions.DBQueryException;
 
 import java.io.*;
+import java.util.Arrays;
 import java.util.Hashtable;
+import java.util.List;
 
 public class MetaDataManager {
     private static final String META_DATA_FOLDER = "src/main/resources/metadata/";
@@ -24,13 +26,13 @@ public class MetaDataManager {
 
     public static Hashtable<String, String> getClusteringKeyMetaData(Hashtable<String, Hashtable<String, String>> htblColNameMetaData) {
         for (Hashtable<String, String> htblColMetaData : htblColNameMetaData.values())
-            if (htblColMetaData.get("ClusteringKey").equals("True"))
+            if (htblColMetaData.get("ClusteringKey").equalsIgnoreCase("True"))
                 return htblColMetaData;
         return null;
     }
 
     public static void createTableMetaData(String strTableName, String strClusteringKeyColumn, Hashtable<String, String> htblColNameType,
-                                    Hashtable<String, String> htblColNameMin, Hashtable<String, String> htblColNameMax) throws DBAppException {
+                                           Hashtable<String, String> htblColNameMin, Hashtable<String, String> htblColNameMax) throws DBAppException {
         try {
             String tableMetaDataFile = META_DATA_FOLDER + strTableName + ".csv";
             if (new File(tableMetaDataFile).exists())
@@ -47,11 +49,10 @@ public class MetaDataManager {
                 String ColNameMin = htblColNameMin.get(ColNames[i]);
                 String ColNameMax = htblColNameMax.get(ColNames[i]);
 
-                writer.write(strTableName + "," + ColNames[i] + "," + ColNameType + "," + (ColNames[i].equals(strClusteringKeyColumn) ? "True" : "False")
-                        + "," + "null" + "," + "null" + "," + ColNameMin + "," + ColNameMax + (i != numCols - 1 ? "\n" : ""));
+                writer.write(strTableName + "," + ColNames[i] + "," + ColNameType + "," + (ColNames[i].equalsIgnoreCase(strClusteringKeyColumn) ? "True" : "False")
+                        + "," + "null" + "," + "null" + "," + ColNameMin + "," + ColNameMax + "\n");
             }
             writer.close();
-            System.out.println("Table MetaData created successfully ar " + tableMetaDataFile);
         } catch (IOException e) {
             throw new DBQueryException("Failed to create Table MetaData");
         }
@@ -92,4 +93,36 @@ public class MetaDataManager {
         }
     }
 
+    public static void createIndex(String strTableName, String[] ColNames) throws DBAppException {
+        try {
+            String tableMetaDataFile = META_DATA_FOLDER + strTableName + ".csv";
+
+            FileReader fr = new FileReader(tableMetaDataFile);
+            BufferedReader br = new BufferedReader(fr);
+
+            String oldMetaData = "";
+            List<String> colNamesList = Arrays.asList(ColNames);
+            br.readLine();
+            while (br.ready()) {
+                String[] colMetaData = br.readLine().split(",");
+                String colNameIndexName = String.join("_", ColNames);
+                ;
+
+                if (colNamesList.contains(colMetaData[1]))
+                    oldMetaData += (colMetaData[0] + "," + colMetaData[1] + "," + colMetaData[2] + "," + colMetaData[3] + "," +
+                            colNameIndexName + "," + "Octree" + "," + colMetaData[6] + "," + colMetaData[7] + "\n");
+                else
+                    oldMetaData += (colMetaData[0] + "," + colMetaData[1] + "," + colMetaData[2] + "," + colMetaData[3] + "," +
+                            "null" + "," + "null" + "," + colMetaData[6] + "," + colMetaData[7] + "\n");
+            }
+            br.close();
+
+            FileWriter writer = new FileWriter(tableMetaDataFile);
+            writer.write("TableName,ColumnName,ColumnType,ClusteringKey,IndexName,IndexType,Min,Max\n");
+            writer.write(oldMetaData);
+            writer.close();
+        } catch (IOException e) {
+            throw new DBQueryException("Failed to create Table MetaData");
+        }
+    }
 }

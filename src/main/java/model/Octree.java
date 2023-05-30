@@ -5,13 +5,15 @@ import exceptions.DBSchemaException;
 import utils.Validation;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Vector;
 
 public class Octree implements Serializable {
 
-    private Octant minXYZ, maxXYZ;
     private final Octree[] children = new Octree[8];
     private final Vector<Octant> points; // A list to store duplicate points
+    private Octant minXYZ, maxXYZ;
 
     public Octree(Comparable x1, Comparable y1, Comparable z1, Comparable x2, Comparable y2, Comparable z2) throws DBAppException {
         if (x2.compareTo(x1) < 0 || y2.compareTo(y1) < 0 || z2.compareTo(z1) < 0) {
@@ -37,8 +39,10 @@ public class Octree implements Serializable {
     }
 
     public void insert(Comparable x, Comparable y, Comparable z, int pageIndex) throws DBAppException {
-       if(!isValid(x, y, z))
+        if (!isValid(x, y, z)) {
+            System.out.println(x + " " + y + " " + z + " " + maxXYZ.toString() + " " + minXYZ.toString());
             throw new DBSchemaException("Invalid coordinates");
+        }
 
         Comparable[] mids = getMidPoints();
         Comparable midX = mids[0], midY = mids[1], midZ = mids[2];
@@ -50,12 +54,13 @@ public class Octree implements Serializable {
         } else if (children[pos].points.isEmpty()) { // if empty, then it's an empty Octant (leaf node)
             children[pos] = new Octree(x, y, z, pageIndex);
         } else {                                     // else it is a non-empty Octant (leaf node)
+            // handle multiple duplicates
             Octant octant = children[pos].points.get(0);
             Comparable x_ = octant.getX();
             Comparable y_ = octant.getY();
             Comparable z_ = octant.getZ();
             int pageIndex_ = octant.getPageIndex();
-            if (x == x_ && y == y_ && z == z_) { // if is a duplicate
+            if (x.equals(x_) && y.equals(y_) && z.equals(z_)) { // if is a duplicate
                 children[pos].points.add(new Octant(x, y, z, pageIndex));
                 return;
             }
@@ -88,7 +93,7 @@ public class Octree implements Serializable {
     }
 
     public boolean find(Comparable x, Comparable y, Comparable z) {
-        if(!isValid(x, y, z))
+        if (!isValid(x, y, z))
             return false;
 
         int pos = getPosition(x, y, z);
@@ -97,14 +102,13 @@ public class Octree implements Serializable {
             return children[pos].find(x, y, z);
         if (children[pos].points.isEmpty())
             return false;
-        return (x == children[pos].points.get(0).getX() && y == children[pos].points.get(0).getY() && z == children[pos].points.get(0).getZ());
+        return (x.equals(children[pos].points.get(0).getX()) && y.equals(children[pos].points.get(0).getY()) && z.equals(children[pos].points.get(0).getZ()));
     }
 
-    // Comparable[] : [x, y, z, pageIndex]
-    public Vector<Comparable[]> get(Comparable x1, Comparable y1, Comparable z1, Comparable x2, Comparable y2, Comparable z2) {
-        Vector<Comparable[]> result = new Vector<>();
+    public HashSet<Integer> get(Comparable x1, Comparable y1, Comparable z1, Comparable x2, Comparable y2, Comparable z2) {
+        HashSet<Integer> result = new HashSet<>();
 
-        if(!isValid(x1, y1, z1) || !isValid(x2, y2, z2))
+        if (!isValid(x1, y1, z1) || !isValid(x2, y2, z2))
             return result;
         if (!isRangesIntersect(x1, y1, z1, x2, y2, z2))
             return result;
@@ -118,7 +122,7 @@ public class Octree implements Serializable {
                     Comparable y = octant.getY();
                     Comparable z = octant.getZ();
                     if (isInRange(x, y, z, x1, y1, z1, x2, y2, z2))
-                        result.add(new Comparable[] {x, y, z, octant.getPageIndex()});
+                        result.add(octant.getPageIndex());
                 }
         }
         return result;
@@ -126,42 +130,44 @@ public class Octree implements Serializable {
 
     // return pageIndices of all points with the same x, y, z
     public HashSet<Integer> get(Comparable x, Comparable y, Comparable z) {
-        if(!isValid(x, y, z))
-            return null;
+        HashSet<Integer> pageIndices = new HashSet<>();
+        if (!isValid(x, y, z))
+            return pageIndices;
 
         int pos = getPosition(x, y, z);
 
         if (children[pos].points == null)
             return children[pos].get(x, y, z);
         if (children[pos].points.isEmpty())
-            return null;
-        if (x == children[pos].points.get(0).getX() && y == children[pos].points.get(0).getY() && z == children[pos].points.get(0).getZ()) {
-            HashSet<Integer> pageIndices = new HashSet<>();
+            return pageIndices;
+        if (x.equals(children[pos].points.get(0).getX()) && y.equals(children[pos].points.get(0).getY()) && z.equals(children[pos].points.get(0).getZ())) {
             for (int i = 0; i < children[pos].points.size(); i++)
                 pageIndices.add(children[pos].points.get(i).getPageIndex());
             return pageIndices;
         }
-        return null;
+        return pageIndices;
     }
 
-    public boolean remove(Comparable x, Comparable y, Comparable z) throws DBAppException {
-        if(!isValid(x, y, z))
+    public boolean remove(Comparable x, Comparable y, Comparable z, int pageIndex) throws DBAppException {
+        if (!isValid(x, y, z))
             throw new DBSchemaException("Invalid coordinates");
 
         int pos = getPosition(x, y, z);
 
         if (children[pos].points == null)
-            return children[pos].remove(x, y, z);
-        if (children[pos].points.isEmpty())
-            return false;
-        if (x == children[pos].points.get(0).getX() && y == children[pos].points.get(0).getY() && z == children[pos].points.get(0).getZ())
-            children[pos] = new Octree();
-        return true;
+            return children[pos].remove(x, y, z, pageIndex);
+        else
+            for (int i = 0; i < children[pos].points.size(); i++)
+                if (x.equals(children[pos].points.get(i).getX()) && y.equals(children[pos].points.get(i).getY()) && z.equals(children[pos].points.get(i).getZ())) {
+                    children[pos].points.remove(i);
+                    return true;
+                }
+
+        return false;
     }
 
-
     public void update(Comparable x, Comparable y, Comparable z, int oldPageIndex, int newPageIndex) {
-        if(!isValid(x, y, z))
+        if (!isValid(x, y, z))
             return;
 
         int pos = getPosition(x, y, z);
@@ -189,7 +195,6 @@ public class Octree implements Serializable {
     }
 
 
-
     // Helpers
     private boolean isValid(Comparable x, Comparable y, Comparable z) {
         if (x.compareTo(minXYZ.getX()) < 0 || x.compareTo(maxXYZ.getX()) > 0
@@ -206,7 +211,7 @@ public class Octree implements Serializable {
         Comparable z1 = minXYZ.getZ(), z2 = maxXYZ.getZ();
 
         midPoints[0] = Validation.getMidComparable(x1, x2);
-        midPoints[1] =  Validation.getMidComparable(y1, y2);
+        midPoints[1] = Validation.getMidComparable(y1, y2);
         midPoints[2] = Validation.getMidComparable(z1, z2);
 
         return midPoints;
@@ -282,7 +287,7 @@ class Octant implements Serializable {
         this.y = y;
         this.z = z;
     }
-    
+
     public Octant() {
     }
 
@@ -297,7 +302,7 @@ class Octant implements Serializable {
     public Comparable getZ() {
         return z;
     }
-    
+
     public int getPageIndex() {
         return pageIndex;
     }
@@ -305,8 +310,11 @@ class Octant implements Serializable {
     public void setPageIndex(int pageIndex) {
         this.pageIndex = pageIndex;
     }
-}
 
+    public String toString() {
+        return "(" + x + ", " + y + ", " + z + ")";
+    }
+}
 
 enum OctLocations {
     TopLeftFront(0),

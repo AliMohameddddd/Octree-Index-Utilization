@@ -9,7 +9,6 @@ import utils.SerializationManager;
 import utils.Validation;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -26,50 +25,66 @@ public class DBApp {
         htblColNameType.put("id", "java.lang.Integer");
         htblColNameType.put("name", "java.lang.String");
         htblColNameType.put("gpa", "java.lang.double");
+        htblColNameType.put("phone", "java.lang.Integer");
         Hashtable htblColNameMin = new Hashtable<String, String>();
         htblColNameMin.put("id", "0");
         htblColNameMin.put("name", "A");
         htblColNameMin.put("gpa", "0.0");
+        htblColNameMin.put("phone", "0");
         Hashtable htblColNameMax = new Hashtable<String, String>();
         htblColNameMax.put("id", "1000000000");
         htblColNameMax.put("name", "Z");
         htblColNameMax.put("gpa", "4.0");
+        htblColNameMax.put("phone", "1000000000");
 
 
         Hashtable htblColNameValue = new Hashtable<String, Object>();
         htblColNameValue.put("id", 23873);
         htblColNameValue.put("gpa", 0.95);
         htblColNameValue.put("name", "Alaa");
+        htblColNameValue.put("phone", 110);
 
         Hashtable htblColNameValue2 = new Hashtable<String, Object>();
         htblColNameValue2.put("id", 1);
         htblColNameValue2.put("name", "Alaa");
-        htblColNameValue2.put("gpa", 1.5);
+        htblColNameValue2.put("gpa", 1.95);
+        htblColNameValue2.put("phone", 110111);
+
+        Hashtable htblColNameValue3 = new Hashtable<String, Object>();
+        htblColNameValue3.put("id", 2);
+        htblColNameValue3.put("name", "Alaa");
+        htblColNameValue3.put("gpa", 1.5);
+        htblColNameValue3.put("phone", 110111);
 
 
         Hashtable updatedHtblColNameValue = new Hashtable<String, Object>();
         updatedHtblColNameValue.put("gpa", 1.95);
 
         SQLTerm[] arrSQLTerms;
-        arrSQLTerms = new SQLTerm[2];
+        arrSQLTerms = new SQLTerm[3];
         arrSQLTerms[0] = new SQLTerm("Student", "name", "=", "Alaa");
-        Double d = 1.95;
-        arrSQLTerms[1] = new SQLTerm("Student", "gpa", "=", d);
+        arrSQLTerms[1] = new SQLTerm("Student", "gpa", "=", 1.95);
+        arrSQLTerms[2] = new SQLTerm("Student", "phone", "=", 110111);
 
-        String[] strarrOperators = new String[1];
-        strarrOperators[0] = "OR";
+        String[] strarrOperators = new String[2];
+        strarrOperators[0] = "AND";
+        strarrOperators[1] = "OR";
         try {
             dbApp.createTable(strTableName, strClusteringKeyColumn, htblColNameType, htblColNameMin, htblColNameMax);
 
+            dbApp.createIndex(strTableName, new String[]{"gpa", "name", "phone"});
+
             dbApp.insertIntoTable(strTableName, htblColNameValue);
             dbApp.insertIntoTable(strTableName, htblColNameValue2);
-            printTable(strTableName);
+            dbApp.insertIntoTable(strTableName, htblColNameValue3);
+//            printTable(strTableName);
 
             dbApp.deleteFromTable(strTableName, htblColNameValue);
-            printTable(strTableName);
+//            printTable(strTableName);
 
-            dbApp.updateTable(strTableName, "1", updatedHtblColNameValue);
-            printTable(strTableName);
+            dbApp.updateTable(strTableName, "2", updatedHtblColNameValue);
+//            printTable(strTableName);
+
 
             Iterator iterator = dbApp.selectFromTable(arrSQLTerms, strarrOperators);
             printIterator(iterator);
@@ -81,6 +96,25 @@ public class DBApp {
     public static void printIterator(Iterator iterator) {
         while (iterator.hasNext())
             System.out.println(iterator.next());
+    }
+
+    public static void printTable(String tableName) throws DBAppException {
+        Table table = SerializationManager.deserializeTable(tableName);
+
+        System.out.println("Table: " + table.getTableName());
+        System.out.println("Cluster Key: " + table.getClusterKeyName());
+        System.out.println("Pages Count: " + table.getPagesCount());
+        System.out.println("Size: " + table.getSize());
+        System.out.println("Pages:-");
+
+        Page page;
+        for (int i = 0; i < table.getPagesCount(); i++) {
+            PageReference pageRef = table.getPageReference(i);
+            page = SerializationManager.deserializePage(table.getTableName(), pageRef);
+
+            System.out.print(page);
+        }
+
     }
 
     // this does whatever initialization you would like
@@ -108,14 +142,14 @@ public class DBApp {
 
         if (Validation.isTableExists(strTableName))
             throw new DBAlreadyExistsException("Table already exists");
-        if (!htblColNameType.containsKey(strClusteringKeyColumn))
+        if (!htblColNameType.containsKey(strClusteringKeyColumn.toLowerCase()))
             throw new DBSchemaException("Clustering key does not exist");
         if (!htblColNameType.keySet().equals(htblColNameMin.keySet()) || !htblColNameType.keySet().equals(htblColNameMax.keySet()))
             throw new DBSchemaException("Columns' names do not match");
         if (!Validation.areAllowedDataTypes(htblColNameType))
             throw new DBSchemaException("Invalid data type");
         if (!Validation.validateMinMax(htblColNameType, htblColNameMin, htblColNameMax))
-            throw new DBSchemaException("min, max type do not match schema OR min > max");
+            throw new DBSchemaException("min, max types do not match schema OR min > max");
 
         MetaDataManager.createTableMetaData(strTableName, strClusteringKeyColumn, htblColNameType, htblColNameMin, htblColNameMax);
 
@@ -129,13 +163,40 @@ public class DBApp {
     // If three column names are passed, create an octree.
     // If only one or two column names is passed, throw an Exception.
     public void createIndex(String strTableName, String[] strarrColName) throws DBAppException {
+        if (!Validation.isTableExists(strTableName))
+            throw new DBNotFoundException("Table do not exist");
+        if (strarrColName.length != 3)
+            throw new DBQueryException("Invalid number of columns to be indexed");
 
+        Hashtable<String, Hashtable<String, String>> htblColNameMetaData = MetaDataManager.getMetaData(strTableName);
+        if (!htblColNameMetaData.containsKey(strarrColName[0].toLowerCase())
+                || !htblColNameMetaData.containsKey(strarrColName[1].toLowerCase()) || !htblColNameMetaData.containsKey(strarrColName[2].toLowerCase()))
+            throw new DBSchemaException("Column names do not match table schema");
+
+        Table table = SerializationManager.deserializeTable(strTableName);
+
+        String[] colNames = htblColNameMetaData.keySet().toArray(new String[0]);
+        Hashtable<String, Object> min = new Hashtable<>();
+        Hashtable<String, Object> max = new Hashtable<>();
+        for (String colName : colNames) {
+            String type = htblColNameMetaData.get(colName).get("ColumnType");
+            Object minValue = Validation.getComparable(htblColNameMetaData.get(colName).get("Min"), type);
+            Object maxValue = Validation.getComparable(htblColNameMetaData.get(colName).get("Max"), type);
+
+            min.put(colName, minValue);
+            max.put(colName, maxValue);
+        }
+
+        table.createIndex(strarrColName, min, max);
+
+        MetaDataManager.createIndex(strTableName, strarrColName);
+
+        SerializationManager.serializeTable(table);
     }
 
     // following method inserts one row only.
     // htblColNameValue must include a value for the primary key
     public void insertIntoTable(String strTableName, Hashtable<String, Object> htblColNameValue) throws DBAppException {
-
         if (!Validation.isTableExists(strTableName))
             throw new DBNotFoundException("Table do not exist");
 
@@ -171,7 +232,7 @@ public class DBApp {
 
         Hashtable<String, String> htblClusteringKeyMetaData = MetaDataManager.getClusteringKeyMetaData(htblColNameMetaData);
         if (htblClusteringKeyMetaData == null || !Validation.isNeededType(strClusteringKeyValue, htblClusteringKeyMetaData.get("ColumnType")))
-            throw new DBSchemaException("Clustering is not an accepted type");
+            throw new DBSchemaException("Clustering type do not match schema");
 
         Object clusteringKeyValue = Validation.getComparable(strClusteringKeyValue, htblClusteringKeyMetaData.get("ColumnType"));
         if (!Validation.isMidValue(clusteringKeyValue, htblClusteringKeyMetaData.get("Min"), htblClusteringKeyMetaData.get("Max")))
@@ -188,9 +249,7 @@ public class DBApp {
     // htblColNameValue holds the key and value. This will be used in search
     // to identify which rows/tuples to delete.
     // htblColNameValue entries are ANDED together
-    public void deleteFromTable(String strTableName, Hashtable<String, Object> htblColNameValue)
-            throws DBAppException, ParseException, IOException {
-
+    public void deleteFromTable(String strTableName, Hashtable<String, Object> htblColNameValue) throws DBAppException {
         if (!Validation.isTableExists(strTableName))
             throw new DBNotFoundException("Table do not exist");
 
@@ -208,40 +267,59 @@ public class DBApp {
     }
 
     public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException {
-        // 3 Indexed Columns and in order
+        if (arrSQLTerms.length == 0)
+            throw new DBSchemaException("No SQL terms passed");
+        if (arrSQLTerms.length != strarrOperators.length + 1)
+            throw new DBSchemaException("SQL terms and operators do not match");
+        if (!Validation.areValidConditions(arrSQLTerms))
+            throw new DBSchemaException("Invalid Conditions");
+        if (!Validation.areValidLogicOperators(strarrOperators))
+            throw new DBSchemaException("Invalid logic operators");
+
         String strTableName = arrSQLTerms[0]._strTableName;
+        if (!Validation.isTableExists(arrSQLTerms[0]._strTableName))
+            throw new DBNotFoundException("Table do not exist");
 
-        Table table = SerializationManager.deserializeTable(strTableName);
-
+        Hashtable<String, Hashtable<String, String>> htblColNameMetaData = MetaDataManager.getMetaData(strTableName);
         LinkedHashMap<String, Object> htblColNameValue = new LinkedHashMap<>();
         String[] compareOperators = new String[arrSQLTerms.length];
+        Hashtable<String, Object> htblMin = new Hashtable<>();
+        Hashtable<String, Object> htblMax = new Hashtable<>();
         for (int i = 0; i < arrSQLTerms.length; i++) {
             SQLTerm term = arrSQLTerms[i];
+            String colName = term._strColumnName;
+            String type = htblColNameMetaData.get(colName).get("ColumnType");
+            Comparable minDataType = Validation.getComparable(htblColNameMetaData.get(colName).get("Min"), type);
+            Comparable maxDataType = Validation.getComparable(htblColNameMetaData.get(colName).get("Max"), type);
 
+            Object min = minDataType;
+            Object max = maxDataType;
+            if (term._strOperator == "=") {
+                min = term._objValue;
+                max = term._objValue;
+            }
+            if (term._strOperator == ">")
+                min = Validation.increment((Comparable) term._objValue);
+            if (term._strOperator == ">=")
+                min = term._objValue;
+            if (term._strOperator == "<")
+                max = Validation.decrement((Comparable) term._objValue);
+            if (term._strOperator == "<=")
+                max = term._objValue;
+
+
+            htblMin.put(colName, min);
+            htblMax.put(colName, max);
             htblColNameValue.put(term._strColumnName, term._objValue);
             compareOperators[i] = term._strOperator;
         }
 
-        return table.selectTuples(htblColNameValue, compareOperators, strarrOperators);
-    }
+        if (!Validation.validateSchema(htblColNameValue, htblColNameMetaData))
+            throw new DBSchemaException("Columns metadata do not match table schema");
 
-    public static void printTable(String tableName) throws DBAppException {
-        Table table = SerializationManager.deserializeTable(tableName);
+        Table table = SerializationManager.deserializeTable(strTableName);
 
-        System.out.println("Table: " + table.getTableName());
-        System.out.println("Cluster Key: " + table.getClusterKeyName());
-        System.out.println("Pages Count: " + table.getPagesCount());
-        System.out.println("Size: " + table.getSize());
-        System.out.println("Pages:-");
-
-        Page page;
-        for (int i = 0; i < table.getPagesCount(); i++) {
-            PageReference pageRef = table.getPageReference(i);
-            page = SerializationManager.deserializePage(table.getTableName(), pageRef);
-
-            System.out.print(page);
-        }
-
+        return table.selectTuples(htblMin, htblMax, htblColNameValue, compareOperators, strarrOperators);
     }
 
 }
